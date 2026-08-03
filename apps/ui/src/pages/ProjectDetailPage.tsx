@@ -1,6 +1,28 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 
+const apiUrl = (
+  import.meta.env.VITE_API_URL ?? "http://localhost:3000"
+).replace(/\/$/, "");
+
+type CostCategory =
+  | "DISPOSAL"
+  | "LABOR"
+  | "VEHICLE"
+  | "MACHINERY"
+  | "ATTACHMENT"
+  | "LEASE"
+  | "SUBCONTRACT"
+  | "MISC";
+
+type CostEntry = {
+  id: number;
+  projectId: number;
+  category: CostCategory;
+  amount: number;
+  occurredAt: string;
+  memo: string | null;
+};
 
 type Project = {
   id: number;
@@ -9,68 +31,214 @@ type Project = {
   areaTsubo: number;
   contractPrice: number;
   cost: number;
-}
+};
+
+type ProjectDetail = Project & {
+  costs: CostEntry[];
+};
 
 type Props = {
   projects: Project[];
   deleteProject: (id: number) => void;
+  updateProjectCost: (id: number, cost: number) => void;
 };
 
+const categoryLabels: Record<CostCategory, string> = {
+  DISPOSAL: "処分代",
+  LABOR: "人工",
+  VEHICLE: "車両",
+  MACHINERY: "重機",
+  ATTACHMENT: "アタッチメント",
+  LEASE: "リース",
+  SUBCONTRACT: "外注",
+  MISC: "雑費",
+};
 
-export default function ProjectDetailPage({ 
+export default function ProjectDetailPage({
   projects,
-  deleteProject, 
+  deleteProject,
+  updateProjectCost,
 }: Props) {
-
   const { id } = useParams();
   const navigate = useNavigate();
-  const [isDisposalOpen, setIsDisposalOpen] = useState(false);
-  const project = projects.find(
-    (project) => project.id === Number(id)
+  const projectId = Number(id);
+
+  const [project, setProject] =
+    useState<ProjectDetail | null>(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const [category, setCategory] =
+    useState<CostCategory>("DISPOSAL");
+
+  const [amount, setAmount] = useState("");
+
+  const [occurredAt, setOccurredAt] = useState(
+    new Date().toISOString().slice(0, 10),
   );
 
-  if (!project) {
-      return <div>現場が見つかりません</div>
+  const [memo, setMemo] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const fetchProject = useCallback(async () => {
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      throw new Error("現場IDが正しくありません。");
+    }
+
+    const response = await fetch(
+      `${apiUrl}/projects/${projectId}`,
+    );
+
+    if (!response.ok) {
+      throw new Error("現場詳細の取得に失敗しました。");
+    }
+
+    return (await response.json()) as ProjectDetail;
+  }, [projectId]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadProject = async () => {
+      try {
+        const data = await fetchProject();
+
+        if (isCancelled) {
+          return;
+        }
+
+        setProject(data);
+        setLoadError("");
+        updateProjectCost(data.id, data.cost);
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "通信エラーが発生しました。",
+        );
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadProject();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [fetchProject, updateProjectCost]);
+
+  const handleCostSubmit = async (
+    event: React.FormEvent,
+  ) => {
+    event.preventDefault();
+    setSubmitError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(
+        `${apiUrl}/projects/${projectId}/costs`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            category,
+            amount: Number(amount),
+            occurredAt,
+            memo: memo.trim() || undefined,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "工事原価の登録に失敗しました。入力内容を確認してください。",
+        );
+      }
+
+      setAmount("");
+      setMemo("");
+
+      const updatedProject = await fetchProject();
+
+      setProject(updatedProject);
+      updateProjectCost(
+        updatedProject.id,
+        updatedProject.cost,
+      );
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "通信エラーが発生しました。",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="project-page">
+        現場詳細を読み込み中です...
+      </div>
+    );
   }
 
-  const costBreakdown = [
-    { label: "処分代", amount: 300000 },
-    { label: "人工", amount: 200000 },
-    { label: "車両", amount: 80000 },
-    { label: "重機", amount: 100000 },
-    { label: "アタッチメント", amount: 20000 },
-    { label: "外注", amount: 30000 },
-    { label: "雑費", amount: 20000 },
-  ];
+  if (loadError || !project) {
+    const projectExistsInList = projects.some(
+      (item) => item.id === projectId,
+    );
 
-  const disposalBreakdown = [
-    { label: "木くず", amount: 100000 },
-    { label: "生木", amount: 60000 },
-    { label: "コンクリート", amount: 80000 },
-    { label: "廃プラスチック", amount: 20000 },
-    { label: "石", amount: 30000 },
-    { label: "その他", amount: 10000 },
-  ];
+    return (
+      <div className="project-page">
+        {loadError ||
+          (projectExistsInList
+            ? "現場詳細を取得できませんでした。"
+            : "現場が見つかりません")}
+      </div>
+    );
+  }
 
   const profit = project.contractPrice - project.cost;
 
-  console.log(id);
+  const categoryTotals =
+    project.costs.reduce<Record<string, number>>(
+      (totals, entry) => {
+        totals[entry.category] =
+          (totals[entry.category] ?? 0) + entry.amount;
+
+        return totals;
+      },
+      {},
+    );
 
   return (
-
-      <div className="project-page">
+    <div className="project-page">
       <h1>現場詳細</h1>
 
       <button
         className="add-button"
         onClick={() => navigate("/projects")}
       >
-        一覧に戻る  
+        一覧に戻る
       </button>
 
       <button
         className="add-button"
-        onClick={() => navigate(`/projects/${project.id}/edit`)}
+        onClick={() =>
+          navigate(`/projects/${project.id}/edit`)
+        }
       >
         編集
       </button>
@@ -88,55 +256,159 @@ export default function ProjectDetailPage({
 
       <div className="project-card">
         <h3>{project.address}</h3>
-        <p>{project.structure} / {project.areaTsubo}坪</p>
-        <p>請負金額：{project.contractPrice.toLocaleString()}円</p>
-        <p>工事原価：{project.cost.toLocaleString()}円</p>
+
+        <p>
+          {project.structure} / {project.areaTsubo}坪
+        </p>
+
+        <p>
+          請負金額：
+          {project.contractPrice.toLocaleString()}円
+        </p>
+
+        <p>
+          工事原価：{project.cost.toLocaleString()}円
+        </p>
+
         <p>粗利：{profit.toLocaleString()}円</p>
       </div>
 
       <div className="project-card">
         <h3>工事原価内訳</h3>
 
-        {costBreakdown.map((cost) => {
-          if (cost.label === "処分代") {
-            return (
-              <div
-                key={cost.label}
-                className="cost-row"
-                onClick={() => setIsDisposalOpen(!isDisposalOpen)}
-              >
-                <p>
-                  {isDisposalOpen ? "▼" : "▶"} {cost.label}：
-                  {cost.amount.toLocaleString()}円
-                </p>
+        {(
+          Object.entries(categoryLabels) as [
+            CostCategory,
+            string,
+          ][]
+        ).map(([categoryKey, label]) => (
+          <div key={categoryKey} className="cost-row">
+            <span>{label}</span>
 
-                {isDisposalOpen && (
-                  <div className="disposal-detail">
-                    {disposalBreakdown.map((item) => (
-                      <p key={item.label}>
-                        {item.label}：{item.amount.toLocaleString()}円
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          }
+            <span>
+              {(
+                categoryTotals[categoryKey] ?? 0
+              ).toLocaleString()}
+              円
+            </span>
+          </div>
+        ))}
+      </div>
 
-          return (
-            <div
-              key={cost.label}
-              className="cost-row"
-            >
-              <span>{cost.label}</span>
+      <form
+        className="project-card"
+        onSubmit={handleCostSubmit}
+      >
+        <h3>工事原価を登録</h3>
 
-              <span>
-                {cost.amount.toLocaleString()}円
-              </span>
+        <div>
+          <label>カテゴリ</label>
 
-            </div>
-          );
-        })}
+          <select
+            value={category}
+            onChange={(event) =>
+              setCategory(
+                event.target.value as CostCategory,
+              )
+            }
+            style={{
+              width: "100%",
+              padding: "14px",
+              marginBottom: "12px",
+            }}
+          >
+            {(
+              Object.entries(categoryLabels) as [
+                CostCategory,
+                string,
+              ][]
+            ).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label>金額</label>
+
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={amount}
+            onChange={(event) =>
+              setAmount(event.target.value)
+            }
+            required
+          />
+        </div>
+
+        <div>
+          <label>発生日</label>
+
+          <input
+            type="date"
+            value={occurredAt}
+            onChange={(event) =>
+              setOccurredAt(event.target.value)
+            }
+            required
+          />
+        </div>
+
+        <div>
+          <label>メモ</label>
+
+          <input
+            value={memo}
+            maxLength={200}
+            onChange={(event) =>
+              setMemo(event.target.value)
+            }
+            placeholder="例：木くず処分"
+          />
+        </div>
+
+        {submitError && (
+          <p role="alert">{submitError}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+        >
+          {isSubmitting
+            ? "登録中..."
+            : "原価を登録"}
+        </button>
+      </form>
+
+      <div className="project-card">
+        <h3>登録履歴</h3>
+
+        {project.costs.length === 0 && (
+          <p>登録された工事原価はありません。</p>
+        )}
+
+        {project.costs.map((entry) => (
+          <div key={entry.id} className="cost-row">
+            <span>
+              {categoryLabels[entry.category]}
+              {entry.memo
+                ? `（${entry.memo}）`
+                : ""}
+            </span>
+
+            <span>
+              {entry.amount.toLocaleString()}円 /{" "}
+              {new Date(
+                entry.occurredAt,
+              ).toLocaleDateString("ja-JP")}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
