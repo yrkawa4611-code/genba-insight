@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: genba-insight-db
+    environment:
+      POSTGRES_USER: genba
+      POSTGRES_PASSWORD: genba
+      POSTGRES_DB: genba_insight
+    ports:
+      - "5432:5432"
+    volumes:
+      - genba_insight_db_data:/var/lib/postgresql/data
+
+volumes:
+  genba_insight_db_data:
