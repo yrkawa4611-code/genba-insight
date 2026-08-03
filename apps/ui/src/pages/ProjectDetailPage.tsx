@@ -39,7 +39,7 @@ type ProjectDetail = Project & {
 
 type Props = {
   projects: Project[];
-  deleteProject: (id: number) => void;
+  deleteProject: (id: number) => Promise<void>;
   updateProjectCost: (id: number, cost: number) => void;
 };
 
@@ -81,6 +81,12 @@ export default function ProjectDetailPage({
   const [memo, setMemo] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+
+  const [isDeleting, setIsDeleting] =
+    useState(false);
+
+  const [deleteError, setDeleteError] =
+    useState("");
 
   const fetchProject = useCallback(async () => {
     if (!Number.isInteger(projectId) || projectId <= 0) {
@@ -187,6 +193,28 @@ export default function ProjectDetailPage({
     }
   };
 
+  const handleDelete = async () => {
+  if (!window.confirm("本当に削除しますか？")) {
+    return;
+  }
+
+  setDeleteError("");
+  setIsDeleting(true);
+
+  try {
+    await deleteProject(projectId);
+    navigate("/projects");
+  } catch (error) {
+    setDeleteError(
+      error instanceof Error
+        ? error.message
+        : "通信エラーが発生しました。",
+    );
+  } finally {
+    setIsDeleting(false);
+  }
+};
+
   if (isLoading) {
     return (
       <div className="project-page">
@@ -244,15 +272,15 @@ export default function ProjectDetailPage({
       </button>
 
       <button
-        onClick={() => {
-          if (window.confirm("本当に削除しますか？")) {
-            deleteProject(project.id);
-            navigate("/projects");
-          }
-        }}
+        onClick={() => void handleDelete()}
+        disabled={isDeleting}
       >
-        削除
+        {isDeleting ? "削除中..." : "削除"}
       </button>
+
+      {deleteError && (
+        <p role="alert">{deleteError}</p>
+      )}
 
       <div className="project-card">
         <h3>{project.address}</h3>

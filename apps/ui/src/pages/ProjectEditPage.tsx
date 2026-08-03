@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
 type Project = {
   id: number;
@@ -7,126 +10,215 @@ type Project = {
   structure: string;
   areaTsubo: number;
   contractPrice: number;
+  startDate: string;
   cost: number;
 };
 
+type UpdateProjectInput = Omit<
+  Project,
+  "id" | "cost"
+>;
+
 type Props = {
   projects: Project[];
-  updateProject: (project: Project) => void;
+  updateProject: (
+    id: number,
+    project: UpdateProjectInput,
+  ) => Promise<void>;
 };
 
-export default function ProjectEditPage({ 
-    projects,
-    updateProject, 
+const toDateInputValue = (value: string) =>
+  new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Tokyo",
+  }).format(new Date(value));
+
+export default function ProjectEditPage({
+  projects,
+  updateProject,
 }: Props) {
+  const { id } = useParams();
 
-    const { id } = useParams();
+  const project = projects.find(
+    (item) => item.id === Number(id),
+  );
 
-    const project = projects.find(
-        (project) => project.id === Number(id)
+  if (!project) {
+    return (
+      <div className="project-page">
+        現場を読み込み中です...
+      </div>
     );
-    const [address,setAddress] = useState(project?.address ??"");
-    const [structure, setStructure] = useState(project?.structure ?? "");
-    const [areaTsubo, setAreaTsubo] = useState(
-        project?.areaTsubo.toString() ?? ""
-    );
-    const [contractPrice, setContractPrice] = useState(
-        project?.contractPrice.toString() ?? ""
-    );
-    const [date,setDate] = useState("");
+  }
 
+  return (
+    <ProjectEditForm
+      project={project}
+      updateProject={updateProject}
+    />
+  );
+}
 
-    const navigate = useNavigate();
+type FormProps = {
+  project: Project;
+  updateProject: (
+    id: number,
+    project: UpdateProjectInput,
+  ) => Promise<void>;
+};
 
+function ProjectEditForm({
+  project,
+  updateProject,
+}: FormProps) {
+  const navigate = useNavigate();
 
-    const unitPrice =
-        Number(areaTsubo) > 0
-            ? Number(contractPrice) / Number(areaTsubo)
-            : 0;
+  const [address, setAddress] =
+    useState(project.address);
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+  const [structure, setStructure] =
+    useState(project.structure);
 
-        if (!project) {
-            return;
-        }
+  const [areaTsubo, setAreaTsubo] = useState(
+    project.areaTsubo.toString(),
+  );
 
-        updateProject({
-        id: project.id,
+  const [contractPrice, setContractPrice] =
+    useState(project.contractPrice.toString());
+
+  const [startDate, setStartDate] = useState(
+    toDateInputValue(project.startDate),
+  );
+
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
+  const [error, setError] = useState("");
+
+  const unitPrice =
+    Number(areaTsubo) > 0
+      ? Number(contractPrice) / Number(areaTsubo)
+      : 0;
+
+  const handleSubmit = async (
+    event: React.FormEvent,
+  ) => {
+    event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      await updateProject(project.id, {
         address,
         structure,
         areaTsubo: Number(areaTsubo),
         contractPrice: Number(contractPrice),
-        cost: project.cost,
-        });
+        startDate,
+      });
 
-        navigate(`/projects/${project.id}`);
-    };
+      navigate(`/projects/${project.id}`);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "通信エラーが発生しました。",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    return (
-        <div style={{ padding: "16px" }}>
-            <h1>編集</h1>
+  return (
+    <div className="project-page">
+      <h1>現場編集</h1>
 
-            <form onSubmit={handleSubmit}>
-                <div>
-                    <label>住所</label>
-                    <br />
-                    <input
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                    />
-                </div>
+      <form
+        className="project-card"
+        onSubmit={handleSubmit}
+      >
+        <div>
+          <label>住所</label>
 
-                <div>
-                    <label>構造</label>
-                    <br />
-                    <input
-                        value={structure}
-                        onChange={(e) => setStructure(e.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label>坪数</label>
-                    <br />
-                    <input 
-                        type="number"
-                        value={areaTsubo}
-                        onChange={(e) => setAreaTsubo(e.target.value)}
-                    />
-                </div>
-
-                <div>
-                    <label>請負金額</label>
-                    <br />
-                    <input 
-                        type="number"
-                        value={contractPrice}
-                        onChange={(e) => setContractPrice(e.target.value)} 
-                    />
-                </div>
-
-                <div>
-                    <label>坪単価（自動計算）</label>
-                    <p>
-                        {unitPrice.toLocaleString()}円 / 坪
-                    </p>
-                </div>
-
-                <div>
-                    <label>日付</label>
-                    <br />
-                    <input 
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)} 
-                    />
-                </div>
-
-                <button type="submit">
-                    更新
-                </button>
-            </form>
+          <input
+            value={address}
+            onChange={(event) =>
+              setAddress(event.target.value)
+            }
+            required
+          />
         </div>
-    );
+
+        <div>
+          <label>構造</label>
+
+          <input
+            value={structure}
+            onChange={(event) =>
+              setStructure(event.target.value)
+            }
+            required
+          />
+        </div>
+
+        <div>
+          <label>坪数</label>
+
+          <input
+            type="number"
+            min="0.01"
+            step="any"
+            value={areaTsubo}
+            onChange={(event) =>
+              setAreaTsubo(event.target.value)
+            }
+            required
+          />
+        </div>
+
+        <div>
+          <label>請負金額</label>
+
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={contractPrice}
+            onChange={(event) =>
+              setContractPrice(event.target.value)
+            }
+            required
+          />
+        </div>
+
+        <div>
+          <label>坪単価（自動計算）</label>
+
+          <p>
+            {unitPrice.toLocaleString()}円 / 坪
+          </p>
+        </div>
+
+        <div>
+          <label>開始日</label>
+
+          <input
+            type="date"
+            value={startDate}
+            onChange={(event) =>
+              setStartDate(event.target.value)
+            }
+            required
+          />
+        </div>
+
+        {error && <p role="alert">{error}</p>}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "更新中..." : "更新"}
+        </button>
+      </form>
+    </div>
+  );
 }

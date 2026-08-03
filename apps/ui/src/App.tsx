@@ -22,6 +22,7 @@ type Project = {
 };
 
 type CreateProjectInput = Omit<Project, "id" | "cost">;
+type UpdateProjectInput = Omit<Project, "id" | "cost">;
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -78,17 +79,34 @@ function App() {
     ]);
   };
 
-  const updateProject = (
-    updatedProject: Omit<Project, "startDate">,
-  ) => {
-    setProjects((currentProjects) =>
-      currentProjects.map((project) =>
-        project.id === updatedProject.id
-          ? { ...project, ...updatedProject }
-          : project,
-      ),
+  const updateProject = async (
+  id: number,
+  project: UpdateProjectInput,
+) => {
+  const response = await fetch(`${apiUrl}/projects/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(project),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      "現場の更新に失敗しました。入力内容を確認してください。",
     );
-  };
+  }
+
+  const updatedProject: Project = await response.json();
+
+  setProjects((currentProjects) =>
+    currentProjects.map((project) =>
+      project.id === updatedProject.id
+        ? updatedProject
+        : project,
+    ),
+  );
+};
 
   const updateProjectCost = useCallback(
     (id: number, cost: number) => {
@@ -103,11 +121,21 @@ function App() {
     [],
   );
 
-  const deleteProject = (id: number) => {
-    setProjects((currentProjects) =>
-      currentProjects.filter((project) => project.id !== id),
-    );
-  };
+  const deleteProject = async (id: number) => {
+  const response = await fetch(`${apiUrl}/projects/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error("現場の削除に失敗しました。");
+  }
+
+  setProjects((currentProjects) =>
+    currentProjects.filter(
+      (project) => project.id !== id,
+    ),
+  );
+};
 
   return (
     <BrowserRouter>

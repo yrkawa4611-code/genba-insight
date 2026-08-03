@@ -22,7 +22,7 @@ app.use(
   "*",
   cors({
     origin: "http://localhost:5173",
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "OPTIONS","DELETE","OPTIONS"],
   }),
 );
 
@@ -123,6 +123,101 @@ app.post("/projects", zValidator("json", createProjectSchema), async (c) => {
     },
     201,
   );
+});
+
+app.put(
+  "/projects/:id",
+  zValidator("json", createProjectSchema),
+  async (c) => {
+    const projectId = Number(c.req.param("id"));
+
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return c.json(
+        { message: "現場IDが正しくありません" },
+        400,
+      );
+    }
+
+    const existingProject =
+      await prisma.project.findUnique({
+        where: {
+          id: projectId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    if (!existingProject) {
+      return c.json(
+        { message: "現場が見つかりません" },
+        404,
+      );
+    }
+
+    const updatedProject =
+      await prisma.project.update({
+        where: {
+          id: projectId,
+        },
+        data: c.req.valid("json"),
+        include: {
+          costs: {
+            select: {
+              amount: true,
+            },
+          },
+        },
+      });
+
+    const { costs, ...project } = updatedProject;
+
+    const cost = costs.reduce(
+      (total, entry) => total + entry.amount,
+      0,
+    );
+
+    return c.json({
+      ...project,
+      cost,
+    });
+  },
+);
+
+app.delete("/projects/:id", async (c) => {
+  const projectId = Number(c.req.param("id"));
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return c.json(
+      { message: "現場IDが正しくありません" },
+      400,
+    );
+  }
+
+  const existingProject =
+    await prisma.project.findUnique({
+      where: {
+        id: projectId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  if (!existingProject) {
+    return c.json(
+      { message: "現場が見つかりません" },
+      404,
+    );
+  }
+
+  await prisma.project.delete({
+    where: {
+      id: projectId,
+    },
+  });
+
+  return c.body(null, 204);
 });
 
 app.post(
