@@ -22,7 +22,7 @@ app.use(
   "*",
   cors({
     origin: "http://localhost:5173",
-    allowMethods: ["GET", "POST", "OPTIONS","DELETE","OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   }),
 );
 
@@ -48,6 +48,22 @@ const createCostEntrySchema = z.object({
   amount: z.number().int().positive(),
   occurredAt: z.string().trim().min(1).pipe(z.coerce.date()),
   memo: z.string().trim().max(200).optional(),
+});
+
+const updateCostEntrySchema = z.object({
+  category: z.enum([
+    "DISPOSAL",
+    "LABOR",
+    "VEHICLE",
+    "MACHINERY",
+    "ATTACHMENT",
+    "LEASE",
+    "SUBCONTRACT",
+    "MISC",
+  ]),
+  amount: z.number().int().positive(),
+  occurredAt: z.string().trim().min(1).pipe(z.coerce.date()),
+  memo: z.string().trim().max(200).nullable(),
 });
 
 app.get("/", (c) => {
@@ -100,10 +116,7 @@ app.get("/projects/:id", async (c) => {
     return c.json({ message: "現場が見つかりません" }, 404);
   }
 
-  const cost = project.costs.reduce(
-    (total, entry) => total + entry.amount,
-    0,
-  );
+  const cost = project.costs.reduce((total, entry) => total + entry.amount, 0);
 
   return c.json({
     ...project,
@@ -125,90 +138,68 @@ app.post("/projects", zValidator("json", createProjectSchema), async (c) => {
   );
 });
 
-app.put(
-  "/projects/:id",
-  zValidator("json", createProjectSchema),
-  async (c) => {
-    const projectId = Number(c.req.param("id"));
+app.put("/projects/:id", zValidator("json", createProjectSchema), async (c) => {
+  const projectId = Number(c.req.param("id"));
 
-    if (!Number.isInteger(projectId) || projectId <= 0) {
-      return c.json(
-        { message: "現場IDが正しくありません" },
-        400,
-      );
-    }
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return c.json({ message: "現場IDが正しくありません" }, 400);
+  }
 
-    const existingProject =
-      await prisma.project.findUnique({
-        where: {
-          id: projectId,
-        },
+  const existingProject = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existingProject) {
+    return c.json({ message: "現場が見つかりません" }, 404);
+  }
+
+  const updatedProject = await prisma.project.update({
+    where: {
+      id: projectId,
+    },
+    data: c.req.valid("json"),
+    include: {
+      costs: {
         select: {
-          id: true,
+          amount: true,
         },
-      });
+      },
+    },
+  });
 
-    if (!existingProject) {
-      return c.json(
-        { message: "現場が見つかりません" },
-        404,
-      );
-    }
+  const { costs, ...project } = updatedProject;
 
-    const updatedProject =
-      await prisma.project.update({
-        where: {
-          id: projectId,
-        },
-        data: c.req.valid("json"),
-        include: {
-          costs: {
-            select: {
-              amount: true,
-            },
-          },
-        },
-      });
+  const cost = costs.reduce((total, entry) => total + entry.amount, 0);
 
-    const { costs, ...project } = updatedProject;
-
-    const cost = costs.reduce(
-      (total, entry) => total + entry.amount,
-      0,
-    );
-
-    return c.json({
-      ...project,
-      cost,
-    });
-  },
-);
+  return c.json({
+    ...project,
+    cost,
+  });
+});
 
 app.delete("/projects/:id", async (c) => {
   const projectId = Number(c.req.param("id"));
 
   if (!Number.isInteger(projectId) || projectId <= 0) {
-    return c.json(
-      { message: "現場IDが正しくありません" },
-      400,
-    );
+    return c.json({ message: "現場IDが正しくありません" }, 400);
   }
 
-  const existingProject =
-    await prisma.project.findUnique({
-      where: {
-        id: projectId,
-      },
-      select: {
-        id: true,
-      },
-    });
+  const existingProject = await prisma.project.findUnique({
+    where: {
+      id: projectId,
+    },
+    select: {
+      id: true,
+    },
+  });
 
   if (!existingProject) {
-    return c.json(
-      { message: "現場が見つかりません" },
-      404,
-    );
+    return c.json({ message: "現場が見つかりません" }, 404);
   }
 
   await prisma.project.delete({
@@ -253,6 +244,85 @@ app.post(
     return c.json(costEntry, 201);
   },
 );
+
+app.put(
+  "/projects/:projectId/costs/:costId",
+  zValidator("json", updateCostEntrySchema),
+  async (c) => {
+    const projectId = Number(c.req.param("projectId"));
+
+    const costId = Number(c.req.param("costId"));
+
+    if (
+      !Number.isInteger(projectId) ||
+      projectId <= 0 ||
+      !Number.isInteger(costId) ||
+      costId <= 0
+    ) {
+      return c.json({ message: "IDが正しくありません" }, 400);
+    }
+
+    const existingCostEntry = await prisma.costEntry.findFirst({
+      where: {
+        id: costId,
+        projectId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existingCostEntry) {
+      return c.json({ message: "工事原価が見つかりません" }, 404);
+    }
+
+    const updatedCostEntry = await prisma.costEntry.update({
+      where: {
+        id: costId,
+      },
+      data: c.req.valid("json"),
+    });
+
+    return c.json(updatedCostEntry);
+  },
+);
+
+app.delete("/projects/:projectId/costs/:costId", async (c) => {
+  const projectId = Number(c.req.param("projectId"));
+
+  const costId = Number(c.req.param("costId"));
+
+  if (
+    !Number.isInteger(projectId) ||
+    projectId <= 0 ||
+    !Number.isInteger(costId) ||
+    costId <= 0
+  ) {
+    return c.json({ message: "IDが正しくありません" }, 400);
+  }
+
+  const existingCostEntry = await prisma.costEntry.findFirst({
+    where: {
+      id: costId,
+      projectId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!existingCostEntry) {
+    return c.json({ message: "工事原価が見つかりません" }, 404);
+  }
+
+  await prisma.costEntry.delete({
+    where: {
+      id: costId,
+    },
+  });
+
+  return c.body(null, 204);
+});
 
 serve(
   {

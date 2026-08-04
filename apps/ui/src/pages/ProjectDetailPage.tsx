@@ -63,14 +63,12 @@ export default function ProjectDetailPage({
   const navigate = useNavigate();
   const projectId = Number(id);
 
-  const [project, setProject] =
-    useState<ProjectDetail | null>(null);
+  const [project, setProject] = useState<ProjectDetail | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const [category, setCategory] =
-    useState<CostCategory>("DISPOSAL");
+  const [category, setCategory] = useState<CostCategory>("DISPOSAL");
 
   const [amount, setAmount] = useState("");
 
@@ -79,23 +77,26 @@ export default function ProjectDetailPage({
   );
 
   const [memo, setMemo] = useState("");
+
+  const [editingCostId, setEditingCostId] = useState<number | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  const [isDeleting, setIsDeleting] =
-    useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const [deleteError, setDeleteError] =
-    useState("");
+  const [deleteError, setDeleteError] = useState("");
+
+  const [deletingCostId, setDeletingCostId] = useState<number | null>(null);
+
+  const [costActionError, setCostActionError] = useState("");
 
   const fetchProject = useCallback(async () => {
     if (!Number.isInteger(projectId) || projectId <= 0) {
       throw new Error("現場IDが正しくありません。");
     }
 
-    const response = await fetch(
-      `${apiUrl}/projects/${projectId}`,
-    );
+    const response = await fetch(`${apiUrl}/projects/${projectId}`);
 
     if (!response.ok) {
       throw new Error("現場詳細の取得に失敗しました。");
@@ -124,9 +125,7 @@ export default function ProjectDetailPage({
         }
 
         setLoadError(
-          error instanceof Error
-            ? error.message
-            : "通信エラーが発生しました。",
+          error instanceof Error ? error.message : "通信エラーが発生しました。",
         );
       } finally {
         if (!isCancelled) {
@@ -142,91 +141,137 @@ export default function ProjectDetailPage({
     };
   }, [fetchProject, updateProjectCost]);
 
-  const handleCostSubmit = async (
-    event: React.FormEvent,
-  ) => {
+  const handleCostSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitError("");
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
-        `${apiUrl}/projects/${projectId}/costs`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            category,
-            amount: Number(amount),
-            occurredAt,
-            memo: memo.trim() || undefined,
-          }),
+      const isEditing = editingCostId !== null;
+
+      const url = isEditing
+        ? `${apiUrl}/projects/${projectId}/costs/${editingCostId}`
+        : `${apiUrl}/projects/${projectId}/costs`;
+
+      const response = await fetch(url, {
+        method: isEditing ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          category,
+          amount: Number(amount),
+          occurredAt,
+          memo: isEditing ? memo.trim() || null : memo.trim() || undefined,
+        }),
+      });
 
       if (!response.ok) {
         throw new Error(
-          "工事原価の登録に失敗しました。入力内容を確認してください。",
+          isEditing
+            ? "工事原価の更新に失敗しました。"
+            : "工事原価の登録に失敗しました。",
         );
       }
 
+      setEditingCostId(null);
+      setCategory("DISPOSAL");
       setAmount("");
+      setOccurredAt(new Date().toISOString().slice(0, 10));
       setMemo("");
 
       const updatedProject = await fetchProject();
 
       setProject(updatedProject);
-      updateProjectCost(
-        updatedProject.id,
-        updatedProject.cost,
-      );
+
+      updateProjectCost(updatedProject.id, updatedProject.cost);
     } catch (error) {
       setSubmitError(
-        error instanceof Error
-          ? error.message
-          : "通信エラーが発生しました。",
+        error instanceof Error ? error.message : "通信エラーが発生しました。",
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const startCostEdit = (entry: CostEntry) => {
+    setEditingCostId(entry.id);
+    setCategory(entry.category);
+    setAmount(entry.amount.toString());
+    setOccurredAt(entry.occurredAt.slice(0, 10));
+    setMemo(entry.memo ?? "");
+    setSubmitError("");
+  };
+
+  const cancelCostEdit = () => {
+    setEditingCostId(null);
+    setCategory("DISPOSAL");
+    setAmount("");
+    setOccurredAt(new Date().toISOString().slice(0, 10));
+    setMemo("");
+    setSubmitError("");
+  };
+
+  const handleCostDelete = async (costId: number) => {
+    if (!window.confirm("この工事原価を削除しますか？")) {
+      return;
+    }
+
+    setCostActionError("");
+    setDeletingCostId(costId);
+
+    try {
+      const response = await fetch(
+        `${apiUrl}/projects/${projectId}/costs/${costId}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("工事原価の削除に失敗しました。");
+      }
+
+      const updatedProject = await fetchProject();
+
+      setProject(updatedProject);
+
+      updateProjectCost(updatedProject.id, updatedProject.cost);
+    } catch (error) {
+      setCostActionError(
+        error instanceof Error ? error.message : "通信エラーが発生しました。",
+      );
+    } finally {
+      setDeletingCostId(null);
+    }
+  };
+
   const handleDelete = async () => {
-  if (!window.confirm("本当に削除しますか？")) {
-    return;
-  }
+    if (!window.confirm("本当に削除しますか？")) {
+      return;
+    }
 
-  setDeleteError("");
-  setIsDeleting(true);
+    setDeleteError("");
+    setIsDeleting(true);
 
-  try {
-    await deleteProject(projectId);
-    navigate("/projects");
-  } catch (error) {
-    setDeleteError(
-      error instanceof Error
-        ? error.message
-        : "通信エラーが発生しました。",
-    );
-  } finally {
-    setIsDeleting(false);
-  }
-};
+    try {
+      await deleteProject(projectId);
+      navigate("/projects");
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "通信エラーが発生しました。",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (isLoading) {
-    return (
-      <div className="project-page">
-        現場詳細を読み込み中です...
-      </div>
-    );
+    return <div className="project-page">現場詳細を読み込み中です...</div>;
   }
 
   if (loadError || !project) {
-    const projectExistsInList = projects.some(
-      (item) => item.id === projectId,
-    );
+    const projectExistsInList = projects.some((item) => item.id === projectId);
 
     return (
       <div className="project-page">
@@ -240,47 +285,35 @@ export default function ProjectDetailPage({
 
   const profit = project.contractPrice - project.cost;
 
-  const categoryTotals =
-    project.costs.reduce<Record<string, number>>(
-      (totals, entry) => {
-        totals[entry.category] =
-          (totals[entry.category] ?? 0) + entry.amount;
+  const categoryTotals = project.costs.reduce<Record<string, number>>(
+    (totals, entry) => {
+      totals[entry.category] = (totals[entry.category] ?? 0) + entry.amount;
 
-        return totals;
-      },
-      {},
-    );
+      return totals;
+    },
+    {},
+  );
 
   return (
     <div className="project-page">
       <h1>現場詳細</h1>
 
-      <button
-        className="add-button"
-        onClick={() => navigate("/projects")}
-      >
+      <button className="add-button" onClick={() => navigate("/projects")}>
         一覧に戻る
       </button>
 
       <button
         className="add-button"
-        onClick={() =>
-          navigate(`/projects/${project.id}/edit`)
-        }
+        onClick={() => navigate(`/projects/${project.id}/edit`)}
       >
         編集
       </button>
 
-      <button
-        onClick={() => void handleDelete()}
-        disabled={isDeleting}
-      >
+      <button onClick={() => void handleDelete()} disabled={isDeleting}>
         {isDeleting ? "削除中..." : "削除"}
       </button>
 
-      {deleteError && (
-        <p role="alert">{deleteError}</p>
-      )}
+      {deleteError && <p role="alert">{deleteError}</p>}
 
       <div className="project-card">
         <h3>{project.address}</h3>
@@ -294,9 +327,7 @@ export default function ProjectDetailPage({
           {project.contractPrice.toLocaleString()}円
         </p>
 
-        <p>
-          工事原価：{project.cost.toLocaleString()}円
-        </p>
+        <p>工事原価：{project.cost.toLocaleString()}円</p>
 
         <p>粗利：{profit.toLocaleString()}円</p>
       </div>
@@ -304,30 +335,21 @@ export default function ProjectDetailPage({
       <div className="project-card">
         <h3>工事原価内訳</h3>
 
-        {(
-          Object.entries(categoryLabels) as [
-            CostCategory,
-            string,
-          ][]
-        ).map(([categoryKey, label]) => (
-          <div key={categoryKey} className="cost-row">
-            <span>{label}</span>
+        {(Object.entries(categoryLabels) as [CostCategory, string][]).map(
+          ([categoryKey, label]) => (
+            <div key={categoryKey} className="cost-row">
+              <span>{label}</span>
 
-            <span>
-              {(
-                categoryTotals[categoryKey] ?? 0
-              ).toLocaleString()}
-              円
-            </span>
-          </div>
-        ))}
+              <span>
+                {(categoryTotals[categoryKey] ?? 0).toLocaleString()}円
+              </span>
+            </div>
+          ),
+        )}
       </div>
 
-      <form
-        className="project-card"
-        onSubmit={handleCostSubmit}
-      >
-        <h3>工事原価を登録</h3>
+      <form className="project-card" onSubmit={handleCostSubmit}>
+        <h3>{editingCostId === null ? "工事原価を登録" : "工事原価を編集"}</h3>
 
         <div>
           <label>カテゴリ</label>
@@ -335,9 +357,7 @@ export default function ProjectDetailPage({
           <select
             value={category}
             onChange={(event) =>
-              setCategory(
-                event.target.value as CostCategory,
-              )
+              setCategory(event.target.value as CostCategory)
             }
             style={{
               width: "100%",
@@ -345,16 +365,13 @@ export default function ProjectDetailPage({
               marginBottom: "12px",
             }}
           >
-            {(
-              Object.entries(categoryLabels) as [
-                CostCategory,
-                string,
-              ][]
-            ).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
+            {(Object.entries(categoryLabels) as [CostCategory, string][]).map(
+              ([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ),
+            )}
           </select>
         </div>
 
@@ -366,9 +383,7 @@ export default function ProjectDetailPage({
             min="1"
             step="1"
             value={amount}
-            onChange={(event) =>
-              setAmount(event.target.value)
-            }
+            onChange={(event) => setAmount(event.target.value)}
             required
           />
         </div>
@@ -379,9 +394,7 @@ export default function ProjectDetailPage({
           <input
             type="date"
             value={occurredAt}
-            onChange={(event) =>
-              setOccurredAt(event.target.value)
-            }
+            onChange={(event) => setOccurredAt(event.target.value)}
             required
           />
         </div>
@@ -392,48 +405,71 @@ export default function ProjectDetailPage({
           <input
             value={memo}
             maxLength={200}
-            onChange={(event) =>
-              setMemo(event.target.value)
-            }
+            onChange={(event) => setMemo(event.target.value)}
             placeholder="例：木くず処分"
           />
         </div>
 
-        {submitError && (
-          <p role="alert">{submitError}</p>
-        )}
+        {submitError && <p role="alert">{submitError}</p>}
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-        >
+        <button type="submit" disabled={isSubmitting}>
           {isSubmitting
-            ? "登録中..."
-            : "原価を登録"}
+            ? editingCostId === null
+              ? "登録中..."
+              : "更新中..."
+            : editingCostId === null
+              ? "原価を登録"
+              : "原価を更新"}
         </button>
+
+        {editingCostId !== null && (
+          <button type="button" onClick={cancelCostEdit}>
+            編集をキャンセル
+          </button>
+        )}
       </form>
 
       <div className="project-card">
         <h3>登録履歴</h3>
 
-        {project.costs.length === 0 && (
-          <p>登録された工事原価はありません。</p>
-        )}
+        {project.costs.length === 0 && <p>登録された工事原価はありません。</p>}
+
+        {costActionError && <p role="alert">{costActionError}</p>}
 
         {project.costs.map((entry) => (
           <div key={entry.id} className="cost-row">
             <span>
               {categoryLabels[entry.category]}
-              {entry.memo
-                ? `（${entry.memo}）`
-                : ""}
+              {entry.memo ? `（${entry.memo}）` : ""}
             </span>
 
             <span>
               {entry.amount.toLocaleString()}円 /{" "}
-              {new Date(
-                entry.occurredAt,
-              ).toLocaleDateString("ja-JP")}
+              {new Date(entry.occurredAt).toLocaleDateString("ja-JP")}
+            </span>
+
+            <span
+              style={{
+                display: "flex",
+                gap: "8px",
+              }}
+            >
+              <button
+                type="button"
+                style={{ width: "auto" }}
+                onClick={() => startCostEdit(entry)}
+              >
+                編集
+              </button>
+
+              <button
+                type="button"
+                style={{ width: "auto" }}
+                disabled={deletingCostId === entry.id}
+                onClick={() => void handleCostDelete(entry.id)}
+              >
+                {deletingCostId === entry.id ? "削除中..." : "削除"}
+              </button>
             </span>
           </div>
         ))}
