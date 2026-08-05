@@ -19,6 +19,7 @@ type CostEntry = {
   id: number;
   projectId: number;
   category: CostCategory;
+  detail: string | null;
   amount: number;
   occurredAt: string;
   memo: string | null;
@@ -54,6 +55,32 @@ const categoryLabels: Record<CostCategory, string> = {
   MISC: "雑費",
 };
 
+const detailOptions: Partial<Record<CostCategory, string[]>> = {
+  DISPOSAL: [
+    "木くず",
+    "生木",
+    "コンクリート",
+    "ガラ",
+    "石膏ボード",
+    "金属",
+    "混合",
+    "紙",
+    "ガラス・陶器",
+    "土",
+    "畳",
+    "布",
+    "廃プラスチック",
+    "タイヤ",
+    "家電",
+    "家財",
+    "石",
+    "その他",
+  ],
+  VEHICLE: ["2t", "3t", "4t", "8t", "10t"],
+  MACHINERY: ["30クラス", "40クラス", "0.25㎥", "0.45㎥", "0.7㎥"],
+  ATTACHMENT: ["フォーク", "クラッシャー", "パクラ", "ブレーカー", "カッター"],
+};
+
 export default function ProjectDetailPage({
   projects,
   deleteProject,
@@ -69,6 +96,8 @@ export default function ProjectDetailPage({
   const [loadError, setLoadError] = useState("");
 
   const [category, setCategory] = useState<CostCategory>("DISPOSAL");
+
+  const [detail, setDetail] = useState("");
 
   const [amount, setAmount] = useState("");
 
@@ -160,6 +189,7 @@ export default function ProjectDetailPage({
         },
         body: JSON.stringify({
           category,
+          detail: isEditing ? detail || null : detail || undefined,
           amount: Number(amount),
           occurredAt,
           memo: isEditing ? memo.trim() || null : memo.trim() || undefined,
@@ -176,6 +206,7 @@ export default function ProjectDetailPage({
 
       setEditingCostId(null);
       setCategory("DISPOSAL");
+      setDetail("");
       setAmount("");
       setOccurredAt(new Date().toISOString().slice(0, 10));
       setMemo("");
@@ -197,6 +228,7 @@ export default function ProjectDetailPage({
   const startCostEdit = (entry: CostEntry) => {
     setEditingCostId(entry.id);
     setCategory(entry.category);
+    setDetail(entry.detail ?? "");
     setAmount(entry.amount.toString());
     setOccurredAt(entry.occurredAt.slice(0, 10));
     setMemo(entry.memo ?? "");
@@ -206,6 +238,7 @@ export default function ProjectDetailPage({
   const cancelCostEdit = () => {
     setEditingCostId(null);
     setCategory("DISPOSAL");
+    setDetail("");
     setAmount("");
     setOccurredAt(new Date().toISOString().slice(0, 10));
     setMemo("");
@@ -356,9 +389,10 @@ export default function ProjectDetailPage({
 
           <select
             value={category}
-            onChange={(event) =>
-              setCategory(event.target.value as CostCategory)
-            }
+            onChange={(event) => {
+              setCategory(event.target.value as CostCategory);
+              setDetail("");
+            }}
             style={{
               width: "100%",
               padding: "14px",
@@ -374,6 +408,31 @@ export default function ProjectDetailPage({
             )}
           </select>
         </div>
+
+        {detailOptions[category] && (
+          <div>
+            <label>詳細</label>
+
+            <select
+              value={detail}
+              onChange={(event) => setDetail(event.target.value)}
+              required
+              style={{
+                width: "100%",
+                padding: "14px",
+                marginBottom: "12px",
+              }}
+            >
+              <option value="">選択してください</option>
+
+              {detailOptions[category]?.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div>
           <label>金額</label>
@@ -440,6 +499,7 @@ export default function ProjectDetailPage({
           <div key={entry.id} className="cost-row">
             <span>
               {categoryLabels[entry.category]}
+              {entry.detail ? ` / ${entry.detail}` : ""}
               {entry.memo ? `（${entry.memo}）` : ""}
             </span>
 
