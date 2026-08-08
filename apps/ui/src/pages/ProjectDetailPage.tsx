@@ -92,6 +92,10 @@ export default function ProjectDetailPage({
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
 
+  const [expandedCategory, setExpandedCategory] = useState<CostCategory | null>(
+    null,
+  );
+
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
@@ -327,6 +331,21 @@ export default function ProjectDetailPage({
     {},
   );
 
+  const detailTotals = project.costs.reduce<Record<string, number>>(
+    (totals, entry) => {
+      if (!entry.detail) {
+        return totals;
+      }
+
+      const key = `${entry.category}:${entry.detail}`;
+
+      totals[key] = (totals[key] ?? 0) + entry.amount;
+
+      return totals;
+    },
+    {},
+  );
+
   return (
     <div className="project-page">
       <h1>現場詳細</h1>
@@ -369,15 +388,69 @@ export default function ProjectDetailPage({
         <h3>工事原価内訳</h3>
 
         {(Object.entries(categoryLabels) as [CostCategory, string][]).map(
-          ([categoryKey, label]) => (
-            <div key={categoryKey} className="cost-row">
-              <span>{label}</span>
+          ([categoryKey, label]) => {
+            const registeredDetails =
+              detailOptions[categoryKey]?.filter(
+                (detailName) =>
+                  (detailTotals[`${categoryKey}:${detailName}`] ?? 0) > 0,
+              ) ?? [];
 
-              <span>
-                {(categoryTotals[categoryKey] ?? 0).toLocaleString()}円
-              </span>
-            </div>
-          ),
+            const canExpand = registeredDetails.length > 0;
+
+            const isExpanded = expandedCategory === categoryKey;
+
+            return (
+              <div key={categoryKey}>
+                <button
+                  type="button"
+                  className="cost-row"
+                  aria-expanded={canExpand ? isExpanded : undefined}
+                  onClick={() => {
+                    if (canExpand) {
+                      setExpandedCategory(isExpanded ? null : categoryKey);
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    background: "transparent",
+                    color: "inherit",
+                    border: "none",
+                    borderRadius: 0,
+                    margin: 0,
+                    cursor: canExpand ? "pointer" : "default",
+                  }}
+                >
+                  <span>
+                    {canExpand ? `${isExpanded ? "▼" : "▶"} ${label}` : label}
+                  </span>
+
+                  <span>
+                    {(categoryTotals[categoryKey] ?? 0).toLocaleString()}円
+                  </span>
+                </button>
+
+                {isExpanded &&
+                  registeredDetails.map((detailName) => (
+                    <div key={detailName} className="cost-row">
+                      <span
+                        style={{
+                          paddingLeft: "24px",
+                        }}
+                      >
+                        └ {detailName}
+                      </span>
+
+                      <span>
+                        {detailTotals[
+                          `${categoryKey}:${detailName}`
+                        ].toLocaleString()}
+                        円
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            );
+          },
         )}
       </div>
 
