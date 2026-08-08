@@ -45,3 +45,12 @@ model CostEntry {
 
   @@index([projectId])
 }
+
+model Company {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

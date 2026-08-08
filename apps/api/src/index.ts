@@ -6,25 +6,42 @@ import { zValidator } from "@hono/zod-validator";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { z } from "zod";
 import { PrismaClient } from "./generated/prisma/client.js";
+import bcrypt from "bcryptjs";
+import { jwt, sign, type JwtVariables } from "hono/jwt";
 
 const connectionString = process.env.DATABASE_URL;
+
+const jwtSecret = process.env.JWT_SECRET;
 
 if (!connectionString) {
   throw new Error("DATABASE_URLが設定されていません");
 }
 
+if (!jwtSecret) {
+  throw new Error("JWT_SECRETが設定されていません");
+}
+
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
-const app = new Hono();
+const app = new Hono<{
+  Variables: JwtVariables;
+}>();
 
 app.use(
   "*",
   cors({
     origin: "http://localhost:5173",
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
   }),
 );
+
+const loginSchema = z.object({
+  companyCode: z.string().trim().min(1).max(50),
+
+  password: z.string().min(8).max(72),
+});
 
 const createProjectSchema = z.object({
   address: z.string().trim().min(1),
@@ -71,6 +88,81 @@ const updateCostEntrySchema = z.object({
 app.get("/", (c) => {
   return c.text("Hello Hono!");
 });
+
+app.post("/auth/login", zValidator("json", loginSchema), async (c) => {
+  const { companyCode, password } = c.req.valid("json");
+
+  const company = await prisma.company.findUnique({
+    where: {
+      code: companyCode,
+    },
+  });
+
+  if (!company) {
+    return c.json(
+      {
+        message: "会社IDまたはパスワードが違います",
+      },
+      401,
+    );
+  }
+
+  const passwordMatches = await bcrypt.compare(password, company.passwordHash);
+
+  if (!passwordMatches) {
+    return c.json(
+      {
+        message: "会社IDまたはパスワードが違います",
+      },
+      401,
+    );
+  }
+
+  const issuedAt = Math.floor(Date.now() / 1000);
+
+  const token = await sign(
+    {
+      sub: company.id.toString(),
+      companyCode: company.code,
+      companyName: company.name,
+      iat: issuedAt,
+      exp: issuedAt + 60 * 60 * 8,
+    },
+    jwtSecret,
+    "HS256",
+  );
+
+  return c.json({
+    token,
+    company: {
+      id: company.id,
+      code: company.code,
+      name: company.name,
+    },
+  });
+});
+
+const requireAuth = jwt({
+  secret: jwtSecret,
+  alg: "HS256",
+});
+
+app.use("/auth/me", requireAuth);
+
+app.get("/auth/me", (c) => {
+  const payload = c.get("jwtPayload");
+
+  return c.json({
+    company: {
+      id: Number(payload.sub),
+      code: payload.companyCode,
+      name: payload.companyName,
+    },
+  });
+});
+
+app.use("/projects", requireAuth);
+app.use("/projects/*", requireAuth);
 
 app.get("/projects", async (c) => {
   const projects = await prisma.project.findMany({
