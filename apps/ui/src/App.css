@@ -24,6 +24,19 @@
   opacity: 0.9;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.header-actions button {
+  width: auto;
+}
+
+.logout-button {
+  background: #333;
+}
+
 * {
   box-sizing: border-box;
 }

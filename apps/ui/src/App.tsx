@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { apiUrl, authFetch, clearToken, getToken } from "./auth";
+import RequireAuth from "./components/RequireAuth";
 import LoginPage from "./pages/LoginPage";
 import ProjectListPage from "./pages/ProjectListPage";
 import "./App.css";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ProjectCreatePage from "./pages/ProjectCreatePage";
 import ProjectEditPage from "./pages/ProjectEditPage";
-
-const apiUrl = (
-  import.meta.env.VITE_API_URL ?? "http://localhost:3000"
-).replace(/\/$/, "");
 
 type Project = {
   id: number;
@@ -24,17 +22,24 @@ type Project = {
 type CreateProjectInput = Omit<Project, "id" | "cost">;
 type UpdateProjectInput = Omit<Project, "id" | "cost">;
 
-function App() {
+function AppRoutes() {
+  const location = useLocation();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getToken()));
 
   useEffect(() => {
+    if (!isAuthenticated || !location.pathname.startsWith("/projects")) {
+      return;
+    }
+
     const loadProjects = async () => {
       try {
+        setIsLoading(true);
         setLoadError("");
 
-        const response = await fetch(`${apiUrl}/projects`);
+        const response = await authFetch(`${apiUrl}/projects`);
 
         if (!response.ok) {
           throw new Error("現場一覧の取得に失敗しました。");
@@ -54,10 +59,10 @@ function App() {
     };
 
     void loadProjects();
-  }, []);
+  }, [isAuthenticated, location.pathname]);
 
   const addProject = async (project: CreateProjectInput) => {
-    const response = await fetch(`${apiUrl}/projects`, {
+    const response = await authFetch(`${apiUrl}/projects`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,7 +88,7 @@ function App() {
   id: number,
   project: UpdateProjectInput,
 ) => {
-  const response = await fetch(`${apiUrl}/projects/${id}`, {
+  const response = await authFetch(`${apiUrl}/projects/${id}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -122,7 +127,7 @@ function App() {
   );
 
   const deleteProject = async (id: number) => {
-  const response = await fetch(`${apiUrl}/projects/${id}`, {
+  const response = await authFetch(`${apiUrl}/projects/${id}`, {
     method: "DELETE",
   });
 
@@ -137,50 +142,73 @@ function App() {
   );
 };
 
+  const handleLogout = () => {
+    clearToken();
+    setIsAuthenticated(false);
+  };
+
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
+    <Routes>
+        <Route
+          path="/"
+          element={<LoginPage onLogin={() => setIsAuthenticated(true)} />}
+        />
 
         <Route
           path="/projects"
           element={
-            <ProjectListPage
-              projects={projects}
-              isLoading={isLoading}
-              error={loadError}
-            />
+            <RequireAuth>
+              <ProjectListPage
+                projects={projects}
+                isLoading={isLoading}
+                error={loadError}
+                onLogout={handleLogout}
+              />
+            </RequireAuth>
           }
         />
 
         <Route
           path="/projects/:id"
           element={
-            <ProjectDetailPage
-              projects={projects}
-              deleteProject={deleteProject}
-              updateProjectCost={updateProjectCost}
-            />
+            <RequireAuth>
+              <ProjectDetailPage
+                projects={projects}
+                deleteProject={deleteProject}
+                updateProjectCost={updateProjectCost}
+              />
+            </RequireAuth>
           }
         />
 
         <Route
           path="/projects/:id/edit"
           element={
-            <ProjectEditPage
-              projects={projects}
-              updateProject={updateProject}
-            />
+            <RequireAuth>
+              <ProjectEditPage
+                projects={projects}
+                updateProject={updateProject}
+              />
+            </RequireAuth>
           }
         />
 
         <Route
           path="/projects/create"
           element={
-            <ProjectCreatePage addProject={addProject} />
+            <RequireAuth>
+              <ProjectCreatePage addProject={addProject} />
+            </RequireAuth>
           }
         />
-      </Routes>
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   );
 }

@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
-const apiUrl = (
-  import.meta.env.VITE_API_URL ?? "http://localhost:3000"
-).replace(/\/$/, "");
+import { apiUrl, authFetch } from "../auth";
 
 type CostCategory =
   | "DISPOSAL"
@@ -129,7 +126,7 @@ export default function ProjectDetailPage({
       throw new Error("現場IDが正しくありません。");
     }
 
-    const response = await fetch(`${apiUrl}/projects/${projectId}`);
+    const response = await authFetch(`${apiUrl}/projects/${projectId}`);
 
     if (!response.ok) {
       throw new Error("現場詳細の取得に失敗しました。");
@@ -186,7 +183,7 @@ export default function ProjectDetailPage({
         ? `${apiUrl}/projects/${projectId}/costs/${editingCostId}`
         : `${apiUrl}/projects/${projectId}/costs`;
 
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: isEditing ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
@@ -258,7 +255,7 @@ export default function ProjectDetailPage({
     setDeletingCostId(costId);
 
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${apiUrl}/projects/${projectId}/costs/${costId}`,
         {
           method: "DELETE",

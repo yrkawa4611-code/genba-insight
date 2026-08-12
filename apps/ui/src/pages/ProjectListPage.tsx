@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { clearToken } from "../auth";
 
 type Project = {
   id: number;
@@ -13,18 +14,30 @@ type Props = {
   projects: Project[];
   isLoading: boolean;
   error: string;
+  onLogout: () => void;
 };
 
-export default function ProjectListPage({ projects, isLoading, error }: Props) {
+export default function ProjectListPage({ projects, isLoading, error, onLogout }: Props) {
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    clearToken();
+    onLogout();
+    navigate("/", { replace: true });
+  };
 
   return (
     <div className="project-page">
       <div className="page-header">
         <h1>現場一覧</h1>
-        <button className="add-button" onClick={() => navigate("/projects/create")}>
-          + 現場登録
-        </button>
+        <div className="header-actions">
+          <button className="add-button" onClick={() => navigate("/projects/create")}>
+            + 現場登録
+          </button>
+          <button className="logout-button" onClick={handleLogout}>
+            ログアウト
+          </button>
+        </div>
       </div>
 
       {isLoading && <p>現場一覧を読み込み中です...</p>}
