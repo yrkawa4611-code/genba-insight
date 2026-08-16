@@ -128,6 +128,10 @@ export default function ProjectDetailPage({
 
     const response = await authFetch(`${apiUrl}/projects/${projectId}`);
 
+    if (response.status === 404) {
+      throw new Error("現場が見つかりません");
+    }
+
     if (!response.ok) {
       throw new Error("現場詳細の取得に失敗しました。");
     }

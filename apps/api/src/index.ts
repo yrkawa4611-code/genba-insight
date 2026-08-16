@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { serve } from "@hono/node-server";
-import { Hono } from "hono";
+import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -24,9 +24,19 @@ if (!jwtSecret) {
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
-const app = new Hono<{
-  Variables: JwtVariables;
-}>();
+type AuthenticatedCompany = {
+  id: number;
+  code: string;
+  name: string;
+};
+
+type AppEnv = {
+  Variables: JwtVariables & {
+    authenticatedCompany: AuthenticatedCompany;
+  };
+};
+
+const app = new Hono<AppEnv>();
 
 app.use(
   "*",
@@ -147,25 +157,66 @@ const requireAuth = jwt({
   alg: "HS256",
 });
 
-app.use("/auth/me", requireAuth);
-
-app.get("/auth/me", (c) => {
+const getAuthenticatedCompany = async (c: Context<AppEnv>) => {
   const payload = c.get("jwtPayload");
 
-  return c.json({
-    company: {
-      id: Number(payload.sub),
-      code: payload.companyCode,
-      name: payload.companyName,
+  if (typeof payload.sub !== "string") {
+    return null;
+  }
+
+  const companyId = Number(payload.sub);
+
+  if (!Number.isSafeInteger(companyId) || companyId <= 0) {
+    return null;
+  }
+
+  return prisma.company.findUnique({
+    where: {
+      id: companyId,
     },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+    },
+  });
+};
+
+const requireAuthenticatedCompany = async (c: Context<AppEnv>, next: Next) => {
+  const company = await getAuthenticatedCompany(c);
+
+  if (!company) {
+    return c.json({ message: "認証情報が正しくありません" }, 401);
+  }
+
+  c.set("authenticatedCompany", company);
+
+  await next();
+};
+
+app.use("/auth/me", requireAuth);
+app.use("/auth/me", requireAuthenticatedCompany);
+
+app.get("/auth/me", (c) => {
+  const company = c.get("authenticatedCompany");
+
+  return c.json({
+    company,
   });
 });
 
 app.use("/projects", requireAuth);
 app.use("/projects/*", requireAuth);
+app.use("/projects", requireAuthenticatedCompany);
+app.use("/projects/*", requireAuthenticatedCompany);
 
 app.get("/projects", async (c) => {
+  const company = c.get("authenticatedCompany");
+
   const projects = await prisma.project.findMany({
+    where: {
+      companyId: company.id,
+    },
     include: {
       costs: {
         select: {
@@ -187,15 +238,18 @@ app.get("/projects", async (c) => {
 });
 
 app.get("/projects/:id", async (c) => {
+  const company = c.get("authenticatedCompany");
+
   const projectId = Number(c.req.param("id"));
 
   if (!Number.isInteger(projectId) || projectId <= 0) {
     return c.json({ message: "現場IDが正しくありません" }, 400);
   }
 
-  const project = await prisma.project.findUnique({
+  const project = await prisma.project.findFirst({
     where: {
       id: projectId,
+      companyId: company.id,
     },
     include: {
       costs: {
@@ -219,8 +273,13 @@ app.get("/projects/:id", async (c) => {
 });
 
 app.post("/projects", zValidator("json", createProjectSchema), async (c) => {
+  const company = c.get("authenticatedCompany");
+
   const project = await prisma.project.create({
-    data: c.req.valid("json"),
+    data: {
+      ...c.req.valid("json"),
+      companyId: company.id,
+    },
   });
 
   return c.json(
@@ -233,15 +292,18 @@ app.post("/projects", zValidator("json", createProjectSchema), async (c) => {
 });
 
 app.put("/projects/:id", zValidator("json", createProjectSchema), async (c) => {
+  const company = c.get("authenticatedCompany");
+
   const projectId = Number(c.req.param("id"));
 
   if (!Number.isInteger(projectId) || projectId <= 0) {
     return c.json({ message: "現場IDが正しくありません" }, 400);
   }
 
-  const existingProject = await prisma.project.findUnique({
+  const existingProject = await prisma.project.findFirst({
     where: {
       id: projectId,
+      companyId: company.id,
     },
     select: {
       id: true,
@@ -277,15 +339,18 @@ app.put("/projects/:id", zValidator("json", createProjectSchema), async (c) => {
 });
 
 app.delete("/projects/:id", async (c) => {
+  const company = c.get("authenticatedCompany");
+
   const projectId = Number(c.req.param("id"));
 
   if (!Number.isInteger(projectId) || projectId <= 0) {
     return c.json({ message: "現場IDが正しくありません" }, 400);
   }
 
-  const existingProject = await prisma.project.findUnique({
+  const existingProject = await prisma.project.findFirst({
     where: {
       id: projectId,
+      companyId: company.id,
     },
     select: {
       id: true,
@@ -309,15 +374,18 @@ app.post(
   "/projects/:id/costs",
   zValidator("json", createCostEntrySchema),
   async (c) => {
+    const company = c.get("authenticatedCompany");
+
     const projectId = Number(c.req.param("id"));
 
     if (!Number.isInteger(projectId) || projectId <= 0) {
       return c.json({ message: "現場IDが正しくありません" }, 400);
     }
 
-    const project = await prisma.project.findUnique({
+    const project = await prisma.project.findFirst({
       where: {
         id: projectId,
+        companyId: company.id,
       },
       select: {
         id: true,
@@ -343,6 +411,8 @@ app.put(
   "/projects/:projectId/costs/:costId",
   zValidator("json", updateCostEntrySchema),
   async (c) => {
+    const company = c.get("authenticatedCompany");
+
     const projectId = Number(c.req.param("projectId"));
 
     const costId = Number(c.req.param("costId"));
@@ -360,6 +430,11 @@ app.put(
       where: {
         id: costId,
         projectId,
+        project: {
+          is: {
+            companyId: company.id,
+          },
+        },
       },
       select: {
         id: true,
@@ -382,6 +457,8 @@ app.put(
 );
 
 app.delete("/projects/:projectId/costs/:costId", async (c) => {
+  const company = c.get("authenticatedCompany");
+
   const projectId = Number(c.req.param("projectId"));
 
   const costId = Number(c.req.param("costId"));
@@ -399,6 +476,11 @@ app.delete("/projects/:projectId/costs/:costId", async (c) => {
     where: {
       id: costId,
       projectId,
+      project: {
+        is: {
+          companyId: company.id,
+        },
+      },
     },
     select: {
       id: true,

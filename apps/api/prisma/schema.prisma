@@ -20,6 +20,7 @@ enum CostCategory {
 
 model Project {
   id            Int         @id @default(autoincrement())
+  companyId     Int
   address       String
   structure     String
   areaTsubo     Float
@@ -27,7 +28,10 @@ model Project {
   startDate     DateTime
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   costs         CostEntry[]
+
+  @@index([companyId])
 }
 
 model CostEntry {
@@ -47,10 +51,11 @@ model CostEntry {
 }
 
 model Company {
-  id           Int      @id @default(autoincrement())
-  code         String   @unique
+  id           Int       @id @default(autoincrement())
+  code         String    @unique
   name         String
   passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  projects     Project[]
 }

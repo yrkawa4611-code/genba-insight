@@ -30,6 +30,12 @@ const main = async () => {
 
   const companyPassword = getRequiredEnv("SEED_COMPANY_PASSWORD");
 
+  if (companyPassword.length < 8 || companyPassword.length > 72) {
+    throw new Error(
+      "SEED_COMPANY_PASSWORDは8文字以上72文字以下で設定してください",
+    );
+  }
+
   const passwordHash = await bcrypt.hash(companyPassword, 12);
 
   await prisma.company.upsert({
