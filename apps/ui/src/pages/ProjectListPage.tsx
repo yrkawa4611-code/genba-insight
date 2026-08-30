@@ -45,6 +45,10 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
 
       {!isLoading && !error && projects.map((project) => {
         const profit = project.contractPrice - project.cost;
+        const profitMargin =
+          project.contractPrice > 0
+            ? (profit / project.contractPrice) * 100
+            : null;
 
         return (
           <div key={project.id} className="project-card" onClick={() => navigate(`/projects/${project.id}`)}>
@@ -54,6 +58,10 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
             <p>契約金額：{project.contractPrice.toLocaleString()}円</p>
             <p>工事原価：{project.cost.toLocaleString()}円</p>
             <p>利益：{profit.toLocaleString()}円</p>
+            <p>
+              粗利率：
+              {profitMargin === null ? "算出不可" : `${profitMargin.toFixed(1)}%`}
+            </p>
           </div>
         );
       })}

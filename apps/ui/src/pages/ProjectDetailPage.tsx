@@ -322,6 +322,10 @@ export default function ProjectDetailPage({
   }
 
   const profit = project.contractPrice - project.cost;
+  const profitMargin =
+    project.contractPrice > 0
+      ? (profit / project.contractPrice) * 100
+      : null;
 
   const categoryTotals = project.costs.reduce<Record<string, number>>(
     (totals, entry) => {
@@ -383,6 +387,11 @@ export default function ProjectDetailPage({
         <p>工事原価：{project.cost.toLocaleString()}円</p>
 
         <p>粗利：{profit.toLocaleString()}円</p>
+
+        <p>
+          粗利率：
+          {profitMargin === null ? "算出不可" : `${profitMargin.toFixed(1)}%`}
+        </p>
       </div>
 
       <div className="project-card">
