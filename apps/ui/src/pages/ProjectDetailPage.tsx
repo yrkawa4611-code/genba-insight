@@ -52,6 +52,17 @@ const categoryLabels: Record<CostCategory, string> = {
   MISC: "雑費",
 };
 
+const categoryColors: Record<CostCategory, string> = {
+  DISPOSAL: "#ff6b2c",
+  LABOR: "#f4b942",
+  VEHICLE: "#2dd4bf",
+  MACHINERY: "#60a5fa",
+  ATTACHMENT: "#a78bfa",
+  LEASE: "#f472b6",
+  SUBCONTRACT: "#84cc16",
+  MISC: "#94a3b8",
+};
+
 const detailOptions: Partial<Record<CostCategory, string[]>> = {
   DISPOSAL: [
     "木くず",
@@ -326,6 +337,10 @@ export default function ProjectDetailPage({
     project.contractPrice > 0
       ? (profit / project.contractPrice) * 100
       : null;
+  const isLoss = profit < 0;
+  const costRatio = project.contractPrice > 0
+    ? Math.min((project.cost / project.contractPrice) * 100, 100)
+    : 0;
 
   const categoryTotals = project.costs.reduce<Record<string, number>>(
     (totals, entry) => {
@@ -351,51 +366,117 @@ export default function ProjectDetailPage({
     {},
   );
 
+  const costBreakdown = (
+    Object.entries(categoryLabels) as [CostCategory, string][]
+  )
+    .map(([categoryKey, label]) => ({
+      category: categoryKey,
+      label,
+      amount: categoryTotals[categoryKey] ?? 0,
+      color: categoryColors[categoryKey],
+    }))
+    .filter((item) => item.amount > 0);
+  const breakdownTotal = costBreakdown.reduce(
+    (total, item) => total + item.amount,
+    0,
+  );
+  let segmentStart = 0;
+  const chartGradient = `conic-gradient(${costBreakdown
+    .map((item) => {
+      const segmentEnd = segmentStart + (item.amount / breakdownTotal) * 100;
+      const segment = `${item.color} ${segmentStart}% ${segmentEnd}%`;
+      segmentStart = segmentEnd;
+      return segment;
+    })
+    .join(", ")})`;
+  const chartLabel = `工事原価合計${project.cost.toLocaleString("ja-JP")}円。${costBreakdown
+    .map(
+      (item) =>
+        `${item.label}${item.amount.toLocaleString("ja-JP")}円、${((item.amount / breakdownTotal) * 100).toFixed(1)}パーセント`,
+    )
+    .join("。")}`;
+
   return (
-    <div className="project-page">
-      <h1>現場詳細</h1>
-
-      <button className="add-button" onClick={() => navigate("/projects")}>
-        一覧に戻る
-      </button>
-
-      <button
-        className="add-button"
-        onClick={() => navigate(`/projects/${project.id}/edit`)}
-      >
-        編集
-      </button>
-
-      <button onClick={() => void handleDelete()} disabled={isDeleting}>
-        {isDeleting ? "削除中..." : "削除"}
-      </button>
+    <main className="project-page project-detail-page">
+      <header className="detail-header">
+        <button className="back-button" type="button" onClick={() => navigate("/projects")}>
+          <span aria-hidden="true">←</span> 現場一覧
+        </button>
+        <div className="detail-actions">
+          <button className="button button-secondary" type="button" onClick={() => navigate(`/projects/${project.id}/edit`)}>編集</button>
+          <button className="button button-danger" type="button" onClick={() => void handleDelete()} disabled={isDeleting}>
+            {isDeleting ? "削除中..." : "削除"}
+          </button>
+        </div>
+      </header>
 
       {deleteError && <p role="alert">{deleteError}</p>}
 
-      <div className="project-card">
-        <h3>{project.address}</h3>
+      <section className="detail-hero">
+        <div className="detail-title-row">
+          <div>
+            <p className="eyebrow">PROJECT DETAIL</p>
+            <h1>{project.address}</h1>
+            <p className="detail-subtitle">{project.structure} ・ {project.areaTsubo.toLocaleString("ja-JP")}坪</p>
+          </div>
+          <span className={`status-badge ${isLoss ? "status-loss" : profit > 0 ? "status-profit" : "status-neutral"}`}>
+            <span className="status-dot" />{isLoss ? "赤字" : profit > 0 ? "黒字" : "未算出"}
+          </span>
+        </div>
+        <div className="detail-kpis">
+          <div className="detail-kpi"><span>請負金額</span><strong>¥{project.contractPrice.toLocaleString("ja-JP")}</strong></div>
+          <div className="detail-kpi"><span>現在原価</span><strong>¥{project.cost.toLocaleString("ja-JP")}</strong></div>
+          <div className="detail-kpi"><span>粗利</span><strong className={isLoss ? "text-danger" : "text-success"}>¥{profit.toLocaleString("ja-JP")}</strong></div>
+          <div className="detail-kpi margin-kpi">
+            <span>粗利率</span><strong className={isLoss ? "text-danger" : ""}>{profitMargin === null ? "—" : `${profitMargin.toFixed(1)}%`}</strong>
+            <div className="mini-progress"><span className={isLoss ? "progress-loss" : ""} style={{ width: `${costRatio}%` }} /></div>
+          </div>
+        </div>
+      </section>
 
-        <p>
-          {project.structure} / {project.areaTsubo}坪
-        </p>
+      <div className="detail-content-grid">
+        <div className="detail-main-column">
 
-        <p>
-          請負金額：
-          {project.contractPrice.toLocaleString()}円
-        </p>
+      <section className="project-card detail-section-card">
+        <div className="section-heading"><div><p className="eyebrow">COST BREAKDOWN</p><h2>工事原価内訳</h2></div><strong>¥{project.cost.toLocaleString("ja-JP")}</strong></div>
 
-        <p>工事原価：{project.cost.toLocaleString()}円</p>
+        {breakdownTotal > 0 ? (
+          <div className="cost-chart-layout">
+            <div
+              className="cost-donut"
+              role="img"
+              aria-label={chartLabel}
+              style={{ background: chartGradient }}
+            >
+              <div className="cost-donut-center" aria-hidden="true">
+                <span>工事原価</span>
+                <strong>¥{project.cost.toLocaleString("ja-JP")}</strong>
+              </div>
+            </div>
+            <ul className="cost-chart-legend" aria-label="原価カテゴリー別の内訳">
+              {costBreakdown.map((item) => {
+                const percentage = (item.amount / breakdownTotal) * 100;
 
-        <p>粗利：{profit.toLocaleString()}円</p>
-
-        <p>
-          粗利率：
-          {profitMargin === null ? "算出不可" : `${profitMargin.toFixed(1)}%`}
-        </p>
-      </div>
-
-      <div className="project-card">
-        <h3>工事原価内訳</h3>
+                return (
+                  <li key={item.category}>
+                    <span
+                      className="legend-color"
+                      style={{ backgroundColor: item.color }}
+                      aria-hidden="true"
+                    />
+                    <span className="legend-name">{item.label}</span>
+                    <strong>{item.amount.toLocaleString("ja-JP")}円</strong>
+                    <span className="legend-percentage">
+                      {percentage.toFixed(1)}%
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <div className="cost-chart-empty">原価データがありません</div>
+        )}
 
         {(Object.entries(categoryLabels) as [CostCategory, string][]).map(
           ([categoryKey, label]) => {
@@ -420,15 +501,7 @@ export default function ProjectDetailPage({
                       setExpandedCategory(isExpanded ? null : categoryKey);
                     }
                   }}
-                  style={{
-                    width: "100%",
-                    background: "transparent",
-                    color: "inherit",
-                    border: "none",
-                    borderRadius: 0,
-                    margin: 0,
-                    cursor: canExpand ? "pointer" : "default",
-                  }}
+                  style={{ cursor: canExpand ? "pointer" : "default" }}
                 >
                   <span>
                     {canExpand ? `${isExpanded ? "▼" : "▶"} ${label}` : label}
@@ -462,12 +535,12 @@ export default function ProjectDetailPage({
             );
           },
         )}
-      </div>
+      </section>
 
-      <form className="project-card" onSubmit={handleCostSubmit}>
-        <h3>{editingCostId === null ? "工事原価を登録" : "工事原価を編集"}</h3>
+      <form className="project-card cost-form-card" onSubmit={handleCostSubmit}>
+        <div className="section-heading"><div><p className="eyebrow">ADD COST</p><h2>{editingCostId === null ? "工事原価を登録" : "工事原価を編集"}</h2></div></div>
 
-        <div>
+        <div className="form-field">
           <label>カテゴリ</label>
 
           <select
@@ -493,7 +566,7 @@ export default function ProjectDetailPage({
         </div>
 
         {detailOptions[category] && (
-          <div>
+          <div className="form-field">
             <label>詳細</label>
 
             <select
@@ -517,7 +590,7 @@ export default function ProjectDetailPage({
           </div>
         )}
 
-        <div>
+        <div className="form-field">
           <label>金額</label>
 
           <input
@@ -530,7 +603,7 @@ export default function ProjectDetailPage({
           />
         </div>
 
-        <div>
+        <div className="form-field">
           <label>発生日</label>
 
           <input
@@ -541,7 +614,7 @@ export default function ProjectDetailPage({
           />
         </div>
 
-        <div>
+        <div className="form-field">
           <label>メモ</label>
 
           <input
@@ -554,7 +627,7 @@ export default function ProjectDetailPage({
 
         {submitError && <p role="alert">{submitError}</p>}
 
-        <button type="submit" disabled={isSubmitting}>
+        <button className="form-submit" type="submit" disabled={isSubmitting}>
           {isSubmitting
             ? editingCostId === null
               ? "登録中..."
@@ -565,28 +638,28 @@ export default function ProjectDetailPage({
         </button>
 
         {editingCostId !== null && (
-          <button type="button" onClick={cancelCostEdit}>
+          <button className="button-secondary cancel-button" type="button" onClick={cancelCostEdit}>
             編集をキャンセル
           </button>
         )}
       </form>
 
-      <div className="project-card">
-        <h3>登録履歴</h3>
+      <section className="project-card detail-section-card history-card">
+        <div className="section-heading"><div><p className="eyebrow">HISTORY</p><h2>登録履歴</h2></div><span className="count-badge">{project.costs.length}件</span></div>
 
         {project.costs.length === 0 && <p>登録された工事原価はありません。</p>}
 
         {costActionError && <p role="alert">{costActionError}</p>}
 
         {project.costs.map((entry) => (
-          <div key={entry.id} className="cost-row">
-            <span>
+          <div key={entry.id} className="cost-row history-row">
+            <span className="history-description">
               {categoryLabels[entry.category]}
               {entry.detail ? ` / ${entry.detail}` : ""}
               {entry.memo ? `（${entry.memo}）` : ""}
             </span>
 
-            <span>
+            <span className="history-amount">
               {entry.amount.toLocaleString()}円 /{" "}
               {new Date(entry.occurredAt).toLocaleDateString("ja-JP")}
             </span>
@@ -597,7 +670,7 @@ export default function ProjectDetailPage({
                 gap: "8px",
               }}
             >
-              <button
+              <button className="row-action"
                 type="button"
                 style={{ width: "auto" }}
                 onClick={() => startCostEdit(entry)}
@@ -605,7 +678,7 @@ export default function ProjectDetailPage({
                 編集
               </button>
 
-              <button
+              <button className="row-action row-delete"
                 type="button"
                 style={{ width: "auto" }}
                 disabled={deletingCostId === entry.id}
@@ -616,7 +689,13 @@ export default function ProjectDetailPage({
             </span>
           </div>
         ))}
+      </section>
+        </div>
+
+        <aside className="detail-side-column">
+          <div className="side-label">原価の追加・編集</div>
+        </aside>
       </div>
-    </div>
+    </main>
   );
 }
