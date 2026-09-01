@@ -15,6 +15,18 @@ const date = (value: string) => {
 export default function ProjectListPage({ projects, isLoading, error, onLogout }: Props) {
   const navigate = useNavigate();
   const logout = () => { clearToken(); onLogout(); navigate("/", { replace: true }); };
+  const summary = projects.reduce((totals, project) => {
+    const profit = project.contractPrice - project.cost;
+    return {
+      contractPrice: totals.contractPrice + project.contractPrice,
+      cost: totals.cost + project.cost,
+      profit: totals.profit + profit,
+      lossCount: totals.lossCount + (profit < 0 ? 1 : 0),
+    };
+  }, { contractPrice: 0, cost: 0, profit: 0, lossCount: 0 });
+  const overallMargin = summary.contractPrice > 0
+    ? summary.profit / summary.contractPrice * 100
+    : null;
 
   return (
     <main className="project-page project-list-page">
@@ -32,6 +44,25 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
 
       {isLoading && <div className="state-panel" role="status"><span className="loading-dot" />現場一覧を読み込み中です...</div>}
       {error && <div className="state-panel state-panel-error" role="alert">{error}</div>}
+      {!isLoading && !error && (
+        <section className="portfolio-summary" aria-labelledby="portfolio-summary-title">
+          <div className="summary-heading">
+            <div>
+              <p className="eyebrow">PORTFOLIO</p>
+              <h2 id="portfolio-summary-title">会社全体の採算</h2>
+            </div>
+            <span className="summary-period">登録済み現場の合計</span>
+          </div>
+          <div className="summary-grid">
+            <div className="summary-item"><span>請負金額合計</span><strong>{yen(summary.contractPrice)}</strong></div>
+            <div className="summary-item"><span>工事原価合計</span><strong>{yen(summary.cost)}</strong></div>
+            <div className="summary-item"><span>粗利合計</span><strong className={summary.profit < 0 ? "text-danger" : "text-success"}>{yen(summary.profit)}</strong></div>
+            <div className="summary-item"><span>全体粗利率</span><strong className={summary.profit < 0 ? "text-danger" : "text-success"}>{overallMargin === null ? "—" : `${overallMargin.toFixed(1)}%`}</strong></div>
+            <div className="summary-item summary-count"><span>現場数</span><strong>{projects.length.toLocaleString("ja-JP")}<small>件</small></strong></div>
+            <div className={`summary-item summary-count${summary.lossCount > 0 ? " summary-alert" : ""}`}><span>赤字現場数</span><strong>{summary.lossCount.toLocaleString("ja-JP")}<small>件</small></strong></div>
+          </div>
+        </section>
+      )}
       {!isLoading && !error && projects.length === 0 && (
         <div className="empty-state">
           <div className="empty-state-icon">＋</div><h2>現場がまだ登録されていません</h2>
