@@ -12,6 +12,7 @@ type CostEntry = {
   memo: string | null;
   project: {
     id: number;
+    name: string | null;
     address: string;
   };
 };
@@ -134,7 +135,9 @@ export default function CostListPage() {
                 }}
               >
                 <span className="cost-list-date" data-label="発生日">{date(entry.occurredAt)}</span>
-                <strong className="cost-list-project" data-label="現場">{entry.project.address}</strong>
+                <strong className="cost-list-project" data-label="現場">
+                  <span>{entry.project.name || entry.project.address}{entry.project.name && <small className="cost-project-address">{entry.project.address}</small>}</span>
+                </strong>
                 <span className="cost-list-category" data-label="カテゴリー">
                   <span>{sale ? "売却収入" : categoryLabels[entry.category]}</span>
                   {entry.detail && <small>{normalizeCostDetail(entry.category, entry.detail)}</small>}

@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { clearToken } from "../auth";
 
-type Project = { id: number; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
+type Project = { id: number; name: string | null; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
 type Props = { projects: Project[]; isLoading: boolean; error: string; onLogout: () => void };
 
 const yen = (value: number) => `\u00a5${value.toLocaleString("ja-JP")}`;
@@ -85,7 +85,7 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
                 if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); }
               }}>
               <div className="project-card-header">
-                <div><p className="project-meta">{project.structure} ・ {project.areaTsubo.toLocaleString("ja-JP")}坪</p><h2>{project.address}</h2></div>
+                <div><p className="project-meta">{project.structure} ・ {project.areaTsubo.toLocaleString("ja-JP")}坪</p><h2>{project.name || project.address}</h2>{project.name && <p className="project-address">{project.address}</p>}</div>
                 <span className={`status-badge ${loss ? "status-loss" : profit > 0 ? "status-profit" : "status-neutral"}`}>
                   <span className="status-dot" />{loss ? "赤字" : profit > 0 ? "黒字" : "未算出"}
                 </span>

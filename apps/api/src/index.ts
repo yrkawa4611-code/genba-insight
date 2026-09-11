@@ -54,6 +54,7 @@ const loginSchema = z.object({
 });
 
 const createProjectSchema = z.object({
+  name: z.string().trim().nullish().transform((value) => value || null),
   address: z.string().trim().min(1),
   structure: z.string().trim().min(1),
   areaTsubo: z.number().positive(),
@@ -235,6 +236,7 @@ app.get("/costs", async (c) => {
         select: {
           id: true,
           address: true,
+          name: true,
         },
       },
     },
