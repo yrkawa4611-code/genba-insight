@@ -17,6 +17,13 @@ type CostEntry = {
 };
 
 const yen = (value: number) => `¥${value.toLocaleString("ja-JP")}`;
+type CategoryFilter = "ALL" | CostCategory | "SALE";
+const categoryFilters: { value: CategoryFilter; label: string }[] = [
+  { value: "ALL", label: "すべて" },
+  ...(Object.keys(categoryLabels) as CostCategory[]).map((value) => ({ value, label: categoryLabels[value] })),
+  { value: "SALE", label: "売却収入" },
+];
+
 const date = (value: string) => new Intl.DateTimeFormat("ja-JP", {
   year: "numeric",
   month: "2-digit",
@@ -29,6 +36,12 @@ export default function CostListPage() {
   const [costs, setCosts] = useState<CostEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>("ALL");
+  const filteredCosts = costs.filter((entry) => {
+    if (selectedCategory === "ALL") return true;
+    if (selectedCategory === "SALE") return isMetalSale(entry);
+    return entry.category === selectedCategory && !isMetalSale(entry);
+  });
 
   useEffect(() => {
     let isCancelled = false;
@@ -72,17 +85,38 @@ export default function CostListPage() {
         <button className="button button-secondary" type="button" onClick={() => navigate("/projects")}>← 現場一覧</button>
       </header>
 
+      {!isLoading && !error && (
+        <div className="cost-filters">
+          <div className="cost-filter-chips" role="group" aria-label="カテゴリー絞り込み">
+            {categoryFilters.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                className="cost-filter-chip"
+                aria-pressed={selectedCategory === value}
+                onClick={() => setSelectedCategory(value)}
+              >{label}</button>
+            ))}
+          </div>
+          <p className="cost-filter-count" role="status">
+            表示件数：{filteredCosts.length.toLocaleString("ja-JP")}件 / 全{costs.length.toLocaleString("ja-JP")}件
+          </p>
+        </div>
+      )}
       {isLoading && <div className="state-panel" role="status"><span className="loading-dot" />原価一覧を読み込み中です...</div>}
       {!isLoading && error && <div className="state-panel state-panel-error" role="alert">{error}</div>}
-      {!isLoading && !error && costs.length === 0 && (
+      {!isLoading && !error && costs.length === 0 && selectedCategory === "ALL" && (
         <div className="empty-state"><h2>登録された原価はありません</h2><p>各現場の詳細画面から原価を登録できます。</p></div>
       )}
-      {!isLoading && !error && costs.length > 0 && (
+      {!isLoading && !error && filteredCosts.length === 0 && selectedCategory !== "ALL" && (
+        <div className="empty-state"><h2>該当する原価はありません</h2><p>別のカテゴリー、または「すべて」を選択してください。</p></div>
+      )}
+      {!isLoading && !error && filteredCosts.length > 0 && (
         <section className="cost-list" aria-label="原価">
           <div className="cost-list-header" aria-hidden="true">
             <span>発生日</span><span>現場</span><span>カテゴリー</span><span>金額</span><span>メモ</span><span />
           </div>
-          {costs.map((entry) => {
+          {filteredCosts.map((entry) => {
             const openProject = () => navigate(`/projects/${entry.project.id}`);
             const sale = isMetalSale(entry);
             return (

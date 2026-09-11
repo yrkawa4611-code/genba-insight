@@ -36,6 +36,12 @@ h1 { margin-bottom: 0; font-size: clamp(28px, 4vw, 38px); line-height: 1.25; let
 .summary-item small { margin-left: 3px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .summary-count { grid-row: 2; }
 .summary-alert strong, .summary-alert small { color: var(--red); }
+.cost-filters { min-width: 0; margin-bottom: 18px; }
+.cost-filter-chips { display: flex; gap: 8px; overflow-x: auto; padding: 5px 4px 12px; }
+.cost-filter-chip { flex: 0 0 auto; width: auto; min-height: 44px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); color: #d8d8d8; font-size: 13px; white-space: nowrap; }
+.cost-filter-chip:hover:not(:disabled) { border-color: var(--orange); background: #302018; }
+.cost-filter-chip[aria-pressed="true"] { border-color: var(--orange); background: #ff4d0026; color: #ff9566; }
+.cost-filter-count { margin: 8px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .cost-list { overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: 0 12px 36px #0003; }
 .cost-list-header, .cost-list-row { display: grid; grid-template-columns: 110px minmax(180px, 1.4fr) minmax(130px, .8fr) minmax(120px, .7fr) minmax(140px, 1fr) 22px; align-items: center; gap: 16px; }
 .cost-list-header { min-height: 42px; padding: 0 20px; border-bottom: 1px solid var(--border); background: #202020; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
