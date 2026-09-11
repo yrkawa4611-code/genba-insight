@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { clearToken } from "../auth";
 
-type Project = { id: number; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number };
+type Project = { id: number; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
 type Props = { projects: Project[]; isLoading: boolean; error: string; onLogout: () => void };
 
 const yen = (value: number) => `\u00a5${value.toLocaleString("ja-JP")}`;
@@ -16,7 +16,7 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
   const navigate = useNavigate();
   const logout = () => { clearToken(); onLogout(); navigate("/", { replace: true }); };
   const summary = projects.reduce((totals, project) => {
-    const profit = project.contractPrice - project.cost;
+    const profit = project.contractPrice + project.saleIncome - project.cost;
     return {
       contractPrice: totals.contractPrice + project.contractPrice,
       cost: totals.cost + project.cost,
@@ -38,6 +38,7 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
         </div>
         <div className="header-actions">
           <button className="button button-secondary" type="button" onClick={logout}>ログアウト</button>
+          <button className="button button-secondary" type="button" onClick={() => navigate("/costs")}>原価一覧</button>
           <button className="button button-primary" type="button" onClick={() => navigate("/projects/create")}>＋ 現場登録</button>
         </div>
       </header>
@@ -73,7 +74,7 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
 
       {!isLoading && !error && projects.length > 0 && <section className="project-grid" aria-label="現場">
         {projects.map((project) => {
-          const profit = project.contractPrice - project.cost;
+          const profit = project.contractPrice + project.saleIncome - project.cost;
           const margin = project.contractPrice > 0 ? profit / project.contractPrice * 100 : null;
           const ratio = project.contractPrice > 0 ? Math.min(project.cost / project.contractPrice * 100, 100) : 0;
           const loss = profit < 0;

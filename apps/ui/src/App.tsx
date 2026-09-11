@@ -8,6 +8,7 @@ import "./App.css";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ProjectCreatePage from "./pages/ProjectCreatePage";
 import ProjectEditPage from "./pages/ProjectEditPage";
+import CostListPage from "./pages/CostListPage";
 
 type Project = {
   id: number;
@@ -17,10 +18,11 @@ type Project = {
   contractPrice: number;
   startDate: string;
   cost: number;
+  saleIncome: number;
 };
 
-type CreateProjectInput = Omit<Project, "id" | "cost">;
-type UpdateProjectInput = Omit<Project, "id" | "cost">;
+type CreateProjectInput = Omit<Project, "id" | "cost" | "saleIncome">;
+type UpdateProjectInput = Omit<Project, "id" | "cost" | "saleIncome">;
 
 function AppRoutes() {
   const location = useLocation();
@@ -114,11 +116,11 @@ function AppRoutes() {
 };
 
   const updateProjectCost = useCallback(
-    (id: number, cost: number) => {
+    (id: number, cost: number, saleIncome: number) => {
       setProjects((currentProjects) =>
         currentProjects.map((project) =>
           project.id === id
-            ? { ...project, cost }
+            ? { ...project, cost, saleIncome }
             : project,
         ),
       );
@@ -164,6 +166,15 @@ function AppRoutes() {
                 error={loadError}
                 onLogout={handleLogout}
               />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="/costs"
+          element={
+            <RequireAuth>
+              <CostListPage />
             </RequireAuth>
           }
         />

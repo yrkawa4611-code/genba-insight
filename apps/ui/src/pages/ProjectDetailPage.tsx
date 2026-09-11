@@ -1,16 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiUrl, authFetch } from "../auth";
-
-type CostCategory =
-  | "DISPOSAL"
-  | "LABOR"
-  | "VEHICLE"
-  | "MACHINERY"
-  | "ATTACHMENT"
-  | "LEASE"
-  | "SUBCONTRACT"
-  | "MISC";
+import { categoryLabels, isMetalSale, normalizeCostDetail, type CostCategory } from "../costCategories";
 
 type CostEntry = {
   id: number;
@@ -29,6 +20,7 @@ type Project = {
   areaTsubo: number;
   contractPrice: number;
   cost: number;
+  saleIncome: number;
 };
 
 type ProjectDetail = Project & {
@@ -38,18 +30,7 @@ type ProjectDetail = Project & {
 type Props = {
   projects: Project[];
   deleteProject: (id: number) => Promise<void>;
-  updateProjectCost: (id: number, cost: number) => void;
-};
-
-const categoryLabels: Record<CostCategory, string> = {
-  DISPOSAL: "処分代",
-  LABOR: "人工",
-  VEHICLE: "車両",
-  MACHINERY: "重機",
-  ATTACHMENT: "アタッチメント",
-  LEASE: "リース",
-  SUBCONTRACT: "外注",
-  MISC: "雑費",
+  updateProjectCost: (id: number, cost: number, saleIncome: number) => void;
 };
 
 const categoryColors: Record<CostCategory, string> = {
@@ -67,8 +48,8 @@ const detailOptions: Partial<Record<CostCategory, string[]>> = {
   DISPOSAL: [
     "木くず",
     "生木",
-    "コンクリート",
-    "ガラ",
+    "コンクリートガラ",
+    "アスファルトガラ",
     "石膏ボード",
     "金属",
     "混合",
@@ -163,7 +144,7 @@ export default function ProjectDetailPage({
 
         setProject(data);
         setLoadError("");
-        updateProjectCost(data.id, data.cost);
+        updateProjectCost(data.id, data.cost, data.saleIncome);
       } catch (error) {
         if (isCancelled) {
           return;
@@ -231,7 +212,7 @@ export default function ProjectDetailPage({
 
       setProject(updatedProject);
 
-      updateProjectCost(updatedProject.id, updatedProject.cost);
+      updateProjectCost(updatedProject.id, updatedProject.cost, updatedProject.saleIncome);
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : "通信エラーが発生しました。",
@@ -244,7 +225,7 @@ export default function ProjectDetailPage({
   const startCostEdit = (entry: CostEntry) => {
     setEditingCostId(entry.id);
     setCategory(entry.category);
-    setDetail(entry.detail ?? "");
+    setDetail(normalizeCostDetail(entry.category, entry.detail) ?? "");
     setAmount(entry.amount.toString());
     setOccurredAt(entry.occurredAt.slice(0, 10));
     setMemo(entry.memo ?? "");
@@ -285,7 +266,7 @@ export default function ProjectDetailPage({
 
       setProject(updatedProject);
 
-      updateProjectCost(updatedProject.id, updatedProject.cost);
+      updateProjectCost(updatedProject.id, updatedProject.cost, updatedProject.saleIncome);
     } catch (error) {
       setCostActionError(
         error instanceof Error ? error.message : "通信エラーが発生しました。",
@@ -332,7 +313,7 @@ export default function ProjectDetailPage({
     );
   }
 
-  const profit = project.contractPrice - project.cost;
+  const profit = project.contractPrice + project.saleIncome - project.cost;
   const profitMargin =
     project.contractPrice > 0
       ? (profit / project.contractPrice) * 100
@@ -344,6 +325,10 @@ export default function ProjectDetailPage({
 
   const categoryTotals = project.costs.reduce<Record<string, number>>(
     (totals, entry) => {
+      if (isMetalSale(entry)) {
+        return totals;
+      }
+
       totals[entry.category] = (totals[entry.category] ?? 0) + entry.amount;
 
       return totals;
@@ -353,11 +338,11 @@ export default function ProjectDetailPage({
 
   const detailTotals = project.costs.reduce<Record<string, number>>(
     (totals, entry) => {
-      if (!entry.detail) {
+      if (!entry.detail || isMetalSale(entry)) {
         return totals;
       }
 
-      const key = `${entry.category}:${entry.detail}`;
+      const key = `${entry.category}:${normalizeCostDetail(entry.category, entry.detail)}`;
 
       totals[key] = (totals[key] ?? 0) + entry.amount;
 
@@ -478,6 +463,11 @@ export default function ProjectDetailPage({
           <div className="cost-chart-empty">原価データがありません</div>
         )}
 
+          <div className="sale-income-panel">
+            <div><p className="eyebrow">SALE INCOME</p><strong>金属売却収入</strong></div>
+            <strong className="text-success">+¥{project.saleIncome.toLocaleString("ja-JP")}</strong>
+          </div>
+
         {(Object.entries(categoryLabels) as [CostCategory, string][]).map(
           ([categoryKey, label]) => {
             const registeredDetails =
@@ -591,7 +581,7 @@ export default function ProjectDetailPage({
         )}
 
         <div className="form-field">
-          <label>金額</label>
+          <label>{category === "DISPOSAL" && detail === "金属" ? "売却金額" : "金額"}</label>
 
           <input
             type="number"
@@ -654,13 +644,15 @@ export default function ProjectDetailPage({
         {project.costs.map((entry) => (
           <div key={entry.id} className="cost-row history-row">
             <span className="history-description">
-              {categoryLabels[entry.category]}
-              {entry.detail ? ` / ${entry.detail}` : ""}
+              {isMetalSale(entry) ? "売却収入" : categoryLabels[entry.category]}
+              {entry.detail ? ` / ${normalizeCostDetail(entry.category, entry.detail)}` : ""}
               {entry.memo ? `（${entry.memo}）` : ""}
             </span>
 
             <span className="history-amount">
-              {entry.amount.toLocaleString()}円 /{" "}
+              <span className={isMetalSale(entry) ? "text-success" : ""}>
+                {isMetalSale(entry) ? "+¥" : "¥"}{entry.amount.toLocaleString("ja-JP")}
+              </span>{" / "}
               {new Date(entry.occurredAt).toLocaleDateString("ja-JP")}
             </span>
 

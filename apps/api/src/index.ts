@@ -210,6 +210,59 @@ app.use("/projects/*", requireAuth);
 app.use("/projects", requireAuthenticatedCompany);
 app.use("/projects/*", requireAuthenticatedCompany);
 
+app.use("/costs", requireAuth);
+app.use("/costs", requireAuthenticatedCompany);
+
+app.get("/costs", async (c) => {
+  const company = c.get("authenticatedCompany");
+
+  const costs = await prisma.costEntry.findMany({
+    where: {
+      project: {
+        is: {
+          companyId: company.id,
+        },
+      },
+    },
+    select: {
+      id: true,
+      category: true,
+      detail: true,
+      amount: true,
+      occurredAt: true,
+      memo: true,
+      project: {
+        select: {
+          id: true,
+          address: true,
+        },
+      },
+    },
+    orderBy: [
+      { occurredAt: "desc" },
+      { id: "desc" },
+    ],
+  });
+
+  return c.json(costs);
+});
+
+const isMetalSale = (entry: { category: string; detail: string | null }) =>
+  entry.category === "DISPOSAL" && entry.detail === "金属";
+
+const summarizeCosts = (entries: { category: string; detail: string | null; amount: number }[]) =>
+  entries.reduce(
+    (totals, entry) => {
+      if (isMetalSale(entry)) {
+        totals.saleIncome += entry.amount;
+      } else {
+        totals.cost += entry.amount;
+      }
+      return totals;
+    },
+    { cost: 0, saleIncome: 0 },
+  );
+
 app.get("/projects", async (c) => {
   const company = c.get("authenticatedCompany");
 
@@ -221,6 +274,8 @@ app.get("/projects", async (c) => {
       costs: {
         select: {
           amount: true,
+          category: true,
+          detail: true,
         },
       },
     },
@@ -231,7 +286,7 @@ app.get("/projects", async (c) => {
 
   const projectsWithCost = projects.map(({ costs, ...project }) => ({
     ...project,
-    cost: costs.reduce((total, entry) => total + entry.amount, 0),
+    ...summarizeCosts(costs),
   }));
 
   return c.json(projectsWithCost);
@@ -264,11 +319,11 @@ app.get("/projects/:id", async (c) => {
     return c.json({ message: "現場が見つかりません" }, 404);
   }
 
-  const cost = project.costs.reduce((total, entry) => total + entry.amount, 0);
+  const totals = summarizeCosts(project.costs);
 
   return c.json({
     ...project,
-    cost,
+    ...totals,
   });
 });
 
@@ -286,6 +341,7 @@ app.post("/projects", zValidator("json", createProjectSchema), async (c) => {
     {
       ...project,
       cost: 0,
+      saleIncome: 0,
     },
     201,
   );
@@ -323,6 +379,8 @@ app.put("/projects/:id", zValidator("json", createProjectSchema), async (c) => {
       costs: {
         select: {
           amount: true,
+          category: true,
+          detail: true,
         },
       },
     },
@@ -330,11 +388,11 @@ app.put("/projects/:id", zValidator("json", createProjectSchema), async (c) => {
 
   const { costs, ...project } = updatedProject;
 
-  const cost = costs.reduce((total, entry) => total + entry.amount, 0);
+  const totals = summarizeCosts(costs);
 
   return c.json({
     ...project,
-    cost,
+    ...totals,
   });
 });
 
