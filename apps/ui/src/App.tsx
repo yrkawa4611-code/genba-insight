@@ -12,6 +12,7 @@ import CostListPage from "./pages/CostListPage";
 
 type Project = {
   id: number;
+  name: string | null;
   address: string;
   structure: string;
   areaTsubo: number;

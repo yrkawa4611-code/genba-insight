@@ -21,6 +21,7 @@ enum CostCategory {
 model Project {
   id            Int         @id @default(autoincrement())
   companyId     Int
+  name          String?
   address       String
   structure     String
   areaTsubo     Float

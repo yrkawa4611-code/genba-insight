@@ -15,6 +15,7 @@ type CostEntry = {
 
 type Project = {
   id: number;
+  name: string | null;
   address: string;
   structure: string;
   areaTsubo: number;
@@ -401,7 +402,8 @@ export default function ProjectDetailPage({
         <div className="detail-title-row">
           <div>
             <p className="eyebrow">PROJECT DETAIL</p>
-            <h1>{project.address}</h1>
+            <h1>{project.name || project.address}</h1>
+            {project.name && <p className="project-address">{project.address}</p>}
             <p className="detail-subtitle">{project.structure} ・ {project.areaTsubo.toLocaleString("ja-JP")}坪</p>
           </div>
           <span className={`status-badge ${isLoss ? "status-loss" : profit > 0 ? "status-profit" : "status-neutral"}`}>

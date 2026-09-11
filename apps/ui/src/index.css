@@ -49,7 +49,12 @@ h1 { margin-bottom: 0; font-size: clamp(28px, 4vw, 38px); line-height: 1.25; let
 .cost-list-row:last-child { border-bottom: 0; }
 .cost-list-row:hover { background: #ffffff05; }
 .cost-list-date, .cost-list-memo { color: var(--muted); font-size: 12px; }
-.cost-list-project { min-width: 0; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.cost-list-project { min-width: 0; overflow: hidden; font-size: 13px; overflow-wrap: anywhere; }
+.cost-list-project > span { min-width: 0; }
+.cost-project-address { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; font-weight: 400; }
+.project-address { margin: 8px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.project-card-header > div, .detail-title-row > div { min-width: 0; }
+.project-card-header h2, .detail-title-row h1 { overflow-wrap: anywhere; }
 .cost-list-category { display: flex; min-width: 0; flex-direction: column; gap: 3px; font-size: 12px; }
 .cost-list-category small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .cost-list-amount { text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; }

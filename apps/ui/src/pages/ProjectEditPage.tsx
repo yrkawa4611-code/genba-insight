@@ -6,6 +6,7 @@ import {
 
 type Project = {
   id: number;
+  name: string | null;
   address: string;
   structure: string;
   areaTsubo: number;
@@ -71,6 +72,7 @@ function ProjectEditForm({
   updateProject,
 }: FormProps) {
   const navigate = useNavigate();
+  const [name, setName] = useState(project.name ?? "");
 
   const [address, setAddress] =
     useState(project.address);
@@ -108,6 +110,7 @@ function ProjectEditForm({
 
     try {
       await updateProject(project.id, {
+        name: name.trim() || null,
         address,
         structure,
         areaTsubo: Number(areaTsubo),
@@ -135,6 +138,10 @@ function ProjectEditForm({
         className="project-card"
         onSubmit={handleSubmit}
       >
+        <div>
+          <label htmlFor="project-name">工事名（任意）</label>
+          <input id="project-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="田中様邸 解体工事" />
+        </div>
         <div>
           <label>住所</label>
 
