@@ -54,6 +54,7 @@ const loginSchema = z.object({
 });
 
 const createProjectSchema = z.object({
+  targetProfitMargin: z.number().int().min(0).max(100).nullish().transform((value) => value ?? null),
   name: z.string().trim().nullish().transform((value) => value || null),
   address: z.string().trim().min(1),
   structure: z.string().trim().min(1),
@@ -288,6 +289,7 @@ app.get("/projects", async (c) => {
 
   const projectsWithCost = projects.map(({ costs, ...project }) => ({
     ...project,
+    targetProfitMargin: project.targetProfitMargin,
     ...summarizeCosts(costs),
   }));
 
@@ -325,6 +327,7 @@ app.get("/projects/:id", async (c) => {
 
   return c.json({
     ...project,
+    targetProfitMargin: project.targetProfitMargin,
     ...totals,
   });
 });
@@ -342,6 +345,7 @@ app.post("/projects", zValidator("json", createProjectSchema), async (c) => {
   return c.json(
     {
       ...project,
+      targetProfitMargin: project.targetProfitMargin,
       cost: 0,
       saleIncome: 0,
     },
@@ -394,6 +398,7 @@ app.put("/projects/:id", zValidator("json", createProjectSchema), async (c) => {
 
   return c.json({
     ...project,
+    targetProfitMargin: project.targetProfitMargin,
     ...totals,
   });
 });

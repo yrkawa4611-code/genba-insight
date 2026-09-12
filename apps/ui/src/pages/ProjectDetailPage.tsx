@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import TargetProfitMargin from "../components/TargetProfitMargin";
 import { apiUrl, authFetch } from "../auth";
 import { categoryLabels, isMetalSale, normalizeCostDetail, type CostCategory } from "../costCategories";
 
@@ -15,6 +16,7 @@ type CostEntry = {
 
 type Project = {
   id: number;
+  targetProfitMargin: number | null;
   name: string | null;
   address: string;
   structure: string;
@@ -320,9 +322,6 @@ export default function ProjectDetailPage({
       ? (profit / project.contractPrice) * 100
       : null;
   const isLoss = profit < 0;
-  const costRatio = project.contractPrice > 0
-    ? Math.min((project.cost / project.contractPrice) * 100, 100)
-    : 0;
 
   const categoryTotals = project.costs.reduce<Record<string, number>>(
     (totals, entry) => {
@@ -415,8 +414,8 @@ export default function ProjectDetailPage({
           <div className="detail-kpi"><span>現在原価</span><strong>¥{project.cost.toLocaleString("ja-JP")}</strong></div>
           <div className="detail-kpi"><span>粗利</span><strong className={isLoss ? "text-danger" : "text-success"}>¥{profit.toLocaleString("ja-JP")}</strong></div>
           <div className="detail-kpi margin-kpi">
-            <span>粗利率</span><strong className={isLoss ? "text-danger" : ""}>{profitMargin === null ? "—" : `${profitMargin.toFixed(1)}%`}</strong>
-            <div className="mini-progress"><span className={isLoss ? "progress-loss" : ""} style={{ width: `${costRatio}%` }} /></div>
+            <span>粗利率</span><strong className={isLoss ? "text-danger" : ""}>{profitMargin === null ? "—" : `${Math.floor(profitMargin)}%`}</strong>
+            <TargetProfitMargin current={profitMargin} target={project.targetProfitMargin} showDifference />
           </div>
         </div>
       </section>

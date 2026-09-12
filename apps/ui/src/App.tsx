@@ -12,6 +12,7 @@ import CostListPage from "./pages/CostListPage";
 
 type Project = {
   id: number;
+  targetProfitMargin: number | null;
   name: string | null;
   address: string;
   structure: string;

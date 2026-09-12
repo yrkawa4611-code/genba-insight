@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 type Project = {
+  targetProfitMargin: number | null;
   name: string | null;
   address: string;
   structure: string;
@@ -16,6 +17,7 @@ type Props = {
 
 export default function ProjectCreatePage({ addProject }: Props) {
   const [name, setName] = useState("");
+  const [targetProfitMargin, setTargetProfitMargin] = useState("");
   const [address, setAddress] = useState("");
   const [structure, setStructure] = useState("");
   const [areaTsubo, setAreaTsubo] = useState("");
@@ -35,6 +37,7 @@ export default function ProjectCreatePage({ addProject }: Props) {
     try {
       await addProject({
         name: name.trim() || null,
+        targetProfitMargin: targetProfitMargin === "" ? null : Number(targetProfitMargin),
         address,
         structure,
         areaTsubo: Number(areaTsubo),
@@ -53,6 +56,10 @@ export default function ProjectCreatePage({ addProject }: Props) {
     <div style={{ padding: "16px" }}>
       <h1>現場登録</h1>
       <form onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="target-margin">目標粗利率（任意・％）</label>
+          <input id="target-margin" type="number" min="0" max="100" step="1" placeholder="30" value={targetProfitMargin} onChange={(event) => setTargetProfitMargin(event.target.value)} />
+        </div>
         <div>
           <label htmlFor="project-name">工事名（任意）</label><br />
           <input id="project-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="田中様邸 解体工事" />

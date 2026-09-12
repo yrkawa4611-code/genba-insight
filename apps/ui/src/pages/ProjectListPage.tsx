@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { clearToken } from "../auth";
+import TargetProfitMargin from "../components/TargetProfitMargin";
 
-type Project = { id: number; name: string | null; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
+type Project = { id: number; targetProfitMargin: number | null; name: string | null; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
 type Props = { projects: Project[]; isLoading: boolean; error: string; onLogout: () => void };
 
 const yen = (value: number) => `\u00a5${value.toLocaleString("ja-JP")}`;
@@ -58,7 +59,7 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
             <div className="summary-item"><span>請負金額合計</span><strong>{yen(summary.contractPrice)}</strong></div>
             <div className="summary-item"><span>工事原価合計</span><strong>{yen(summary.cost)}</strong></div>
             <div className="summary-item"><span>粗利合計</span><strong className={summary.profit < 0 ? "text-danger" : "text-success"}>{yen(summary.profit)}</strong></div>
-            <div className="summary-item"><span>全体粗利率</span><strong className={summary.profit < 0 ? "text-danger" : "text-success"}>{overallMargin === null ? "—" : `${overallMargin.toFixed(1)}%`}</strong></div>
+            <div className="summary-item"><span>全体粗利率</span><strong className={summary.profit < 0 ? "text-danger" : "text-success"}>{overallMargin === null ? "—" : `${Math.floor(overallMargin)}%`}</strong></div>
             <div className="summary-item summary-count"><span>現場数</span><strong>{projects.length.toLocaleString("ja-JP")}<small>件</small></strong></div>
             <div className={`summary-item summary-count${summary.lossCount > 0 ? " summary-alert" : ""}`}><span>赤字現場数</span><strong>{summary.lossCount.toLocaleString("ja-JP")}<small>件</small></strong></div>
           </div>
@@ -76,7 +77,6 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
         {projects.map((project) => {
           const profit = project.contractPrice + project.saleIncome - project.cost;
           const margin = project.contractPrice > 0 ? profit / project.contractPrice * 100 : null;
-          const ratio = project.contractPrice > 0 ? Math.min(project.cost / project.contractPrice * 100, 100) : 0;
           const loss = profit < 0;
           const open = () => navigate(`/projects/${project.id}`);
           return (
@@ -95,12 +95,9 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
                 <div className="financial-item"><span>請負金額</span><strong>{yen(project.contractPrice)}</strong></div>
                 <div className="financial-item"><span>現在原価</span><strong>{yen(project.cost)}</strong></div>
                 <div className="financial-item"><span>粗利</span><strong className={loss ? "text-danger" : "text-success"}>{yen(profit)}</strong></div>
-                <div className="financial-item"><span>粗利率</span><strong className={loss ? "text-danger" : ""}>{margin === null ? "—" : `${margin.toFixed(1)}%`}</strong></div>
+                <div className="financial-item"><span>粗利率</span><strong className={loss ? "text-danger" : ""}>{margin === null ? "—" : `${Math.floor(margin)}%`}</strong></div>
               </div>
-              <div className="cost-progress" aria-label={`原価消化率 ${ratio.toFixed(1)}%`}>
-                <div className="cost-progress-label"><span>原価 / 請負金額</span><span>{ratio.toFixed(1)}%</span></div>
-                <div className="progress-track"><span className={loss ? "progress-loss" : ""} style={{ width: `${ratio}%` }} /></div>
-              </div>
+              <TargetProfitMargin current={margin} target={project.targetProfitMargin} />
               <div className="project-card-footer"><span>詳細を見る</span><span className="arrow-icon">→</span></div>
             </article>
           );
