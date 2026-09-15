@@ -180,3 +180,16 @@ h1 { margin-bottom: 0; font-size: clamp(28px, 4vw, 38px); line-height: 1.25; let
 .profit-gauge-marker { position: absolute; top: -4px; bottom: -4px; width: 2px; transform: translateX(-50%); background: #fff; }
 .profit-gauge-scale { display: flex; justify-content: space-between; margin-top: 7px; font-size: 10px; }
 .target-margin-detail .profit-gauge-track { height: 10px; }
+.detail-target-panel { padding: 20px 24px; border-top: 1px solid var(--border); }
+.detail-target-panel h2 { margin: 0 0 12px; font-size: 15px; }
+.detail-target-panel .target-margin { margin: 0; }
+.detail-target-panel .profit-gauge-heading { font-size: 13px; line-height: 1.6; }
+@media (max-width: 760px) {
+  .detail-target-panel { padding: 18px; }
+  .detail-target-panel .profit-gauge-heading { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+
+.labor-cost-description { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+.cost-list-category .labor-cost-description { white-space: normal; overflow: visible; }
+.history-description:has(.labor-cost-description) { white-space: normal; overflow-wrap: anywhere; }
+.labor-calculation { line-height: 1.7; overflow-wrap: anywhere; }

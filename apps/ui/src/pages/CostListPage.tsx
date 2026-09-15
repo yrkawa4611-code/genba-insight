@@ -1,3 +1,4 @@
+import LaborCostDescription from "../components/LaborCostDescription";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl, authFetch } from "../auth";
@@ -8,6 +9,8 @@ type CostEntry = {
   category: CostCategory;
   detail: string | null;
   amount: number;
+  laborCount: number | null;
+  laborUnitPrice: number | null;
   occurredAt: string;
   memo: string | null;
   project: {
@@ -141,6 +144,7 @@ export default function CostListPage() {
                 <span className="cost-list-category" data-label="カテゴリー">
                   <span>{sale ? "売却収入" : categoryLabels[entry.category]}</span>
                   {entry.detail && <small>{normalizeCostDetail(entry.category, entry.detail)}</small>}
+                  <LaborCostDescription {...entry} />
                 </span>
                 <strong className={`cost-list-amount${sale ? " text-success" : ""}`} data-label="金額">{sale ? "+" : ""}{yen(entry.amount)}</strong>
                 <span className="cost-list-memo" data-label="メモ">{entry.memo || "—"}</span>

@@ -23,6 +23,7 @@ model Project {
   companyId     Int
   name          String?
   targetProfitMargin Int?
+  laborUnitPrice Int?
   address       String
   structure     String
   areaTsubo     Float
@@ -42,6 +43,8 @@ model CostEntry {
   category   CostCategory
   detail     String?
   amount     Int
+  laborCount Decimal? @db.Decimal(5, 1)
+  laborUnitPrice Int?
   occurredAt DateTime
   memo       String?
   createdAt  DateTime     @default(now())

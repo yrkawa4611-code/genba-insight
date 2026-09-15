@@ -6,6 +6,7 @@ import {
 
 type Project = {
   id: number;
+  laborUnitPrice: number | null;
   targetProfitMargin: number | null;
   name: string | null;
   address: string;
@@ -73,6 +74,7 @@ function ProjectEditForm({
   updateProject,
 }: FormProps) {
   const navigate = useNavigate();
+  const [laborUnitPrice, setLaborUnitPrice] = useState(project.laborUnitPrice?.toString() ?? "");
   const [name, setName] = useState(project.name ?? "");
   const [targetProfitMargin, setTargetProfitMargin] = useState(project.targetProfitMargin?.toString() ?? "");
 
@@ -113,6 +115,7 @@ function ProjectEditForm({
     try {
       await updateProject(project.id, {
         name: name.trim() || null,
+        laborUnitPrice: laborUnitPrice === "" ? null : Number(laborUnitPrice),
         targetProfitMargin: targetProfitMargin === "" ? null : Number(targetProfitMargin),
         address,
         structure,
@@ -141,6 +144,10 @@ function ProjectEditForm({
         className="project-card"
         onSubmit={handleSubmit}
       >
+        <div>
+          <label htmlFor="labor-unit-price">人工単価（1人・1日／円・任意）</label>
+          <input id="labor-unit-price" type="number" min="1" max="1000000" step="1" value={laborUnitPrice} onChange={(event) => setLaborUnitPrice(event.target.value)} placeholder="20000" />
+        </div>
         <div>
           <label htmlFor="target-margin">目標粗利率（任意・％）</label>
           <input id="target-margin" type="number" min="0" max="100" step="1" placeholder="30" value={targetProfitMargin} onChange={(event) => setTargetProfitMargin(event.target.value)} />
