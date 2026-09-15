@@ -1,3 +1,4 @@
+import { calculateCost, laborCountSchema, laborUnitPriceSchema } from "./labor.js";
 import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { Hono, type Context, type Next } from "hono";
@@ -54,6 +55,7 @@ const loginSchema = z.object({
 });
 
 const createProjectSchema = z.object({
+  laborUnitPrice: laborUnitPriceSchema.nullish().transform((value) => value ?? null),
   targetProfitMargin: z.number().int().min(0).max(100).nullish().transform((value) => value ?? null),
   name: z.string().trim().nullish().transform((value) => value || null),
   address: z.string().trim().min(1),
@@ -75,7 +77,8 @@ const createCostEntrySchema = z.object({
     "MISC",
   ]),
   detail: z.string().trim().max(100).optional(),
-  amount: z.number().int().positive(),
+  amount: z.number().int().positive().optional(),
+  laborCount: laborCountSchema.nullish(),
   occurredAt: z.string().trim().min(1).pipe(z.coerce.date()),
   memo: z.string().trim().max(200).optional(),
 });
@@ -92,7 +95,8 @@ const updateCostEntrySchema = z.object({
     "MISC",
   ]),
   detail: z.string().trim().max(100).nullable(),
-  amount: z.number().int().positive(),
+  amount: z.number().int().positive().optional(),
+  laborCount: laborCountSchema.nullish(),
   occurredAt: z.string().trim().min(1).pipe(z.coerce.date()),
   memo: z.string().trim().max(200).nullable(),
 });
@@ -233,6 +237,8 @@ app.get("/costs", async (c) => {
       amount: true,
       occurredAt: true,
       memo: true,
+      laborCount: true,
+      laborUnitPrice: true,
       project: {
         select: {
           id: true,
@@ -247,7 +253,7 @@ app.get("/costs", async (c) => {
     ],
   });
 
-  return c.json(costs);
+  return c.json(costs.map((entry) => ({ ...entry, laborCount: entry.laborCount?.toNumber() ?? null })));
 });
 
 const isMetalSale = (entry: { category: string; detail: string | null }) =>
@@ -327,6 +333,7 @@ app.get("/projects/:id", async (c) => {
 
   return c.json({
     ...project,
+    costs: project.costs.map((entry) => ({ ...entry, laborCount: entry.laborCount?.toNumber() ?? null })),
     targetProfitMargin: project.targetProfitMargin,
     ...totals,
   });
@@ -454,6 +461,7 @@ app.post(
       },
       select: {
         id: true,
+        laborUnitPrice: true,
       },
     });
 
@@ -461,14 +469,22 @@ app.post(
       return c.json({ message: "現場が見つかりません" }, 404);
     }
 
+    let calculated;
+    try {
+      calculated = calculateCost(c.req.valid("json"), project.laborUnitPrice);
+    } catch {
+      return c.json({ message: "人数・金額を確認し、人工単価未設定の場合は現場編集で設定してください。" }, 400);
+    }
+
     const costEntry = await prisma.costEntry.create({
       data: {
         projectId,
         ...c.req.valid("json"),
+        ...calculated,
       },
     });
 
-    return c.json(costEntry, 201);
+    return c.json({ ...costEntry, laborCount: costEntry.laborCount?.toNumber() ?? null }, 201);
   },
 );
 
@@ -503,6 +519,10 @@ app.put(
       },
       select: {
         id: true,
+        category: true,
+        laborCount: true,
+        laborUnitPrice: true,
+        project: { select: { laborUnitPrice: true } },
       },
     });
 
@@ -510,14 +530,21 @@ app.put(
       return c.json({ message: "工事原価が見つかりません" }, 404);
     }
 
+    let calculated;
+    try {
+      calculated = calculateCost(c.req.valid("json"), existingCostEntry.project.laborUnitPrice, existingCostEntry);
+    } catch {
+      return c.json({ message: "人数・金額・人工単価を確認してください。" }, 400);
+    }
+
     const updatedCostEntry = await prisma.costEntry.update({
       where: {
         id: costId,
       },
-      data: c.req.valid("json"),
+      data: { ...c.req.valid("json"), ...calculated },
     });
 
-    return c.json(updatedCostEntry);
+    return c.json({ ...updatedCostEntry, laborCount: updatedCostEntry.laborCount?.toNumber() ?? null });
   },
 );
 

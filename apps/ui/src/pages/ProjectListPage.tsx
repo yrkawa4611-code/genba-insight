@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { clearToken } from "../auth";
 import TargetProfitMargin from "../components/TargetProfitMargin";
 
-type Project = { id: number; targetProfitMargin: number | null; name: string | null; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
+type Project = { id: number; laborUnitPrice: number | null; targetProfitMargin: number | null; name: string | null; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
 type Props = { projects: Project[]; isLoading: boolean; error: string; onLogout: () => void };
 
 const yen = (value: number) => `\u00a5${value.toLocaleString("ja-JP")}`;

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 type Project = {
+  laborUnitPrice: number | null;
   targetProfitMargin: number | null;
   name: string | null;
   address: string;
@@ -16,6 +17,7 @@ type Props = {
 };
 
 export default function ProjectCreatePage({ addProject }: Props) {
+  const [laborUnitPrice, setLaborUnitPrice] = useState("");
   const [name, setName] = useState("");
   const [targetProfitMargin, setTargetProfitMargin] = useState("");
   const [address, setAddress] = useState("");
@@ -37,6 +39,7 @@ export default function ProjectCreatePage({ addProject }: Props) {
     try {
       await addProject({
         name: name.trim() || null,
+        laborUnitPrice: laborUnitPrice === "" ? null : Number(laborUnitPrice),
         targetProfitMargin: targetProfitMargin === "" ? null : Number(targetProfitMargin),
         address,
         structure,
@@ -56,6 +59,10 @@ export default function ProjectCreatePage({ addProject }: Props) {
     <div style={{ padding: "16px" }}>
       <h1>現場登録</h1>
       <form onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="labor-unit-price">人工単価（1人・1日／円・任意）</label>
+          <input id="labor-unit-price" type="number" min="1" max="1000000" step="1" value={laborUnitPrice} onChange={(event) => setLaborUnitPrice(event.target.value)} placeholder="20000" />
+        </div>
         <div>
           <label htmlFor="target-margin">目標粗利率（任意・％）</label>
           <input id="target-margin" type="number" min="0" max="100" step="1" placeholder="30" value={targetProfitMargin} onChange={(event) => setTargetProfitMargin(event.target.value)} />

@@ -1,3 +1,4 @@
+import LaborCostDescription from "../components/LaborCostDescription";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import TargetProfitMargin from "../components/TargetProfitMargin";
@@ -10,12 +11,15 @@ type CostEntry = {
   category: CostCategory;
   detail: string | null;
   amount: number;
+  laborCount: number | null;
+  laborUnitPrice: number | null;
   occurredAt: string;
   memo: string | null;
 };
 
 type Project = {
   id: number;
+  laborUnitPrice: number | null;
   targetProfitMargin: number | null;
   name: string | null;
   address: string;
@@ -96,6 +100,7 @@ export default function ProjectDetailPage({
   const [detail, setDetail] = useState("");
 
   const [amount, setAmount] = useState("");
+  const [laborCount, setLaborCount] = useState("");
 
   const [occurredAt, setOccurredAt] = useState(
     new Date().toISOString().slice(0, 10),
@@ -170,6 +175,12 @@ export default function ProjectDetailPage({
     };
   }, [fetchProject, updateProjectCost]);
 
+  const editingEntry = project?.costs.find((entry) => entry.id === editingCostId);
+  const legacyLabor = category === "LABOR" && editingEntry?.category === "LABOR" && editingEntry.laborUnitPrice === null && editingEntry.laborCount === null;
+  const calculatedLabor = category === "LABOR" && !legacyLabor;
+  const effectiveLaborRate = editingEntry?.category === "LABOR" ? editingEntry.laborUnitPrice : project?.laborUnitPrice;
+  const laborPreview = effectiveLaborRate != null && laborCount !== "" ? Math.round(Number(laborCount) * effectiveLaborRate) : null;
+
   const handleCostSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitError("");
@@ -190,7 +201,8 @@ export default function ProjectDetailPage({
         body: JSON.stringify({
           category,
           detail: isEditing ? detail || null : detail || undefined,
-          amount: Number(amount),
+          amount: calculatedLabor ? undefined : Number(amount),
+          laborCount: calculatedLabor ? Number(laborCount) : undefined,
           occurredAt,
           memo: isEditing ? memo.trim() || null : memo.trim() || undefined,
         }),
@@ -208,6 +220,7 @@ export default function ProjectDetailPage({
       setCategory("DISPOSAL");
       setDetail("");
       setAmount("");
+      setLaborCount("");
       setOccurredAt(new Date().toISOString().slice(0, 10));
       setMemo("");
 
@@ -230,6 +243,7 @@ export default function ProjectDetailPage({
     setCategory(entry.category);
     setDetail(normalizeCostDetail(entry.category, entry.detail) ?? "");
     setAmount(entry.amount.toString());
+    setLaborCount(entry.laborCount?.toString() ?? "");
     setOccurredAt(entry.occurredAt.slice(0, 10));
     setMemo(entry.memo ?? "");
     setSubmitError("");
@@ -240,6 +254,7 @@ export default function ProjectDetailPage({
     setCategory("DISPOSAL");
     setDetail("");
     setAmount("");
+    setLaborCount("");
     setOccurredAt(new Date().toISOString().slice(0, 10));
     setMemo("");
     setSubmitError("");
@@ -413,11 +428,14 @@ export default function ProjectDetailPage({
           <div className="detail-kpi"><span>請負金額</span><strong>¥{project.contractPrice.toLocaleString("ja-JP")}</strong></div>
           <div className="detail-kpi"><span>現在原価</span><strong>¥{project.cost.toLocaleString("ja-JP")}</strong></div>
           <div className="detail-kpi"><span>粗利</span><strong className={isLoss ? "text-danger" : "text-success"}>¥{profit.toLocaleString("ja-JP")}</strong></div>
-          <div className="detail-kpi margin-kpi">
+          <div className="detail-kpi">
             <span>粗利率</span><strong className={isLoss ? "text-danger" : ""}>{profitMargin === null ? "—" : `${Math.floor(profitMargin)}%`}</strong>
-            <TargetProfitMargin current={profitMargin} target={project.targetProfitMargin} showDifference />
           </div>
         </div>
+        <section className="detail-target-panel" aria-labelledby="target-profit-margin-title">
+          <h2 id="target-profit-margin-title">目標粗利率</h2>
+          <TargetProfitMargin current={profitMargin} target={project.targetProfitMargin} showDifference />
+        </section>
       </section>
 
       <div className="detail-content-grid">
@@ -581,18 +599,20 @@ export default function ProjectDetailPage({
           </div>
         )}
 
-        <div className="form-field">
-          <label>{category === "DISPOSAL" && detail === "金属" ? "売却金額" : "金額"}</label>
-
-          <input
-            type="number"
-            min="1"
-            step="1"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            required
-          />
-        </div>
+        {calculatedLabor ? (
+          <div className="form-field">
+            <label htmlFor="labor-count">人数（1日分・0.5人単位）</label>
+            <input id="labor-count" type="number" min="0.5" max="1000" step="0.5" value={laborCount} onChange={(event) => setLaborCount(event.target.value)} required />
+            {effectiveLaborRate == null ? <p role="alert">人工単価が未設定です。<button type="button" className="button button-secondary" onClick={() => navigate(`/projects/${projectId}/edit`)}>現場編集で単価を設定</button></p>
+              : <p className="labor-calculation" aria-live="polite">{laborCount || "—"}人 × {effectiveLaborRate.toLocaleString("ja-JP")}円 = {laborPreview === null ? "—" : laborPreview.toLocaleString("ja-JP")}円{editingEntry?.category === "LABOR" && "（登録時の単価）"}</p>}
+          </div>
+        ) : (
+          <div className="form-field">
+            <label htmlFor="cost-amount">{category === "DISPOSAL" && detail === "金属" ? "売却金額" : "金額"}</label>
+            {legacyLabor && <p>旧形式・人数／単価未記録</p>}
+            <input id="cost-amount" type="number" min="1" step="1" value={amount} onChange={(event) => setAmount(event.target.value)} required />
+          </div>
+        )}
 
         <div className="form-field">
           <label>発生日</label>
@@ -618,7 +638,7 @@ export default function ProjectDetailPage({
 
         {submitError && <p role="alert">{submitError}</p>}
 
-        <button className="form-submit" type="submit" disabled={isSubmitting}>
+        <button className="form-submit" type="submit" disabled={isSubmitting || (calculatedLabor && effectiveLaborRate == null)}>
           {isSubmitting
             ? editingCostId === null
               ? "登録中..."
@@ -647,6 +667,7 @@ export default function ProjectDetailPage({
             <span className="history-description">
               {isMetalSale(entry) ? "売却収入" : categoryLabels[entry.category]}
               {entry.detail ? ` / ${normalizeCostDetail(entry.category, entry.detail)}` : ""}
+              <LaborCostDescription {...entry} />
               {entry.memo ? `（${entry.memo}）` : ""}
             </span>
 

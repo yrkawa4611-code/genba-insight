@@ -12,6 +12,7 @@ import CostListPage from "./pages/CostListPage";
 
 type Project = {
   id: number;
+  laborUnitPrice: number | null;
   targetProfitMargin: number | null;
   name: string | null;
   address: string;
