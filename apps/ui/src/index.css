@@ -193,3 +193,10 @@ h1 { margin-bottom: 0; font-size: clamp(28px, 4vw, 38px); line-height: 1.25; let
 .cost-list-category .labor-cost-description { white-space: normal; overflow: visible; }
 .history-description:has(.labor-cost-description) { white-space: normal; overflow-wrap: anywhere; }
 .labor-calculation { line-height: 1.7; overflow-wrap: anywhere; }
+
+.disposal-inputs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.disposal-preview { grid-column: 1 / -1; display: grid; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; overflow-wrap: anywhere; }
+.disposal-cost-description { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+.cost-list-category .disposal-cost-description { white-space: normal; overflow: visible; }
+.history-description:has(.disposal-cost-description) { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 420px) { .disposal-inputs { grid-template-columns: minmax(0, 1fr); } }

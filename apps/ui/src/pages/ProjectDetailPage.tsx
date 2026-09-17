@@ -1,3 +1,4 @@
+import DisposalCostDescription, { type DisposalSnapshot } from "../components/DisposalCostDescription";
 import LaborCostDescription from "../components/LaborCostDescription";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -5,7 +6,7 @@ import TargetProfitMargin from "../components/TargetProfitMargin";
 import { apiUrl, authFetch } from "../auth";
 import { categoryLabels, isMetalSale, normalizeCostDetail, type CostCategory } from "../costCategories";
 
-type CostEntry = {
+type CostEntry = DisposalSnapshot & {
   id: number;
   projectId: number;
   category: CostCategory;
@@ -101,6 +102,10 @@ export default function ProjectDetailPage({
 
   const [amount, setAmount] = useState("");
   const [laborCount, setLaborCount] = useState("");
+  const [disposalQuantity, setDisposalQuantity] = useState("");
+  const [disposalUnit, setDisposalUnit] = useState("㎥");
+  const [disposalUnitPrice, setDisposalUnitPrice] = useState("");
+  const [disposalTaxRate, setDisposalTaxRate] = useState("10");
 
   const [occurredAt, setOccurredAt] = useState(
     new Date().toISOString().slice(0, 10),
@@ -177,6 +182,15 @@ export default function ProjectDetailPage({
 
   const editingEntry = project?.costs.find((entry) => entry.id === editingCostId);
   const legacyLabor = category === "LABOR" && editingEntry?.category === "LABOR" && editingEntry.laborUnitPrice === null && editingEntry.laborCount === null;
+  const disposal = category === "DISPOSAL" && detail !== "金属";
+  const legacyDisposal = disposal && editingEntry?.category === "DISPOSAL" && editingEntry.detail !== "金属" && editingEntry.disposalQuantity === null && editingEntry.disposalUnit === null && editingEntry.disposalUnitPrice === null && editingEntry.disposalTaxRate === null;
+  const calculatedDisposal = disposal && !legacyDisposal;
+  const quantityValue = Number(disposalQuantity);
+  const priceValue = Number(disposalUnitPrice);
+  const validDisposalInput = disposalQuantity !== "" && disposalUnitPrice !== "" && quantityValue > 0 && quantityValue <= 100000 && Math.abs(quantityValue * 10 - Math.round(quantityValue * 10)) < 1e-8 && Number.isInteger(priceValue) && priceValue >= 0 && priceValue <= 1000000;
+  const disposalSubtotal = validDisposalInput ? Math.floor(Math.round(quantityValue * 10) * priceValue / 10) : null;
+  const disposalTax = disposalSubtotal === null ? null : Math.floor(disposalSubtotal * Number(disposalTaxRate) / 100);
+  const disposalTotal = disposalSubtotal === null || disposalTax === null ? null : disposalSubtotal + disposalTax;
   const calculatedLabor = category === "LABOR" && !legacyLabor;
   const effectiveLaborRate = editingEntry?.category === "LABOR" ? editingEntry.laborUnitPrice : project?.laborUnitPrice;
   const laborPreview = effectiveLaborRate != null && laborCount !== "" ? Math.round(Number(laborCount) * effectiveLaborRate) : null;
@@ -201,7 +215,8 @@ export default function ProjectDetailPage({
         body: JSON.stringify({
           category,
           detail: isEditing ? detail || null : detail || undefined,
-          amount: calculatedLabor ? undefined : Number(amount),
+          amount: calculatedLabor || calculatedDisposal ? undefined : Number(amount),
+          ...(calculatedDisposal ? { disposalQuantity: Number(disposalQuantity), disposalUnit, disposalUnitPrice: Number(disposalUnitPrice), disposalTaxRate: Number(disposalTaxRate) } : {}),
           laborCount: calculatedLabor ? Number(laborCount) : undefined,
           occurredAt,
           memo: isEditing ? memo.trim() || null : memo.trim() || undefined,
@@ -221,6 +236,10 @@ export default function ProjectDetailPage({
       setDetail("");
       setAmount("");
       setLaborCount("");
+      setDisposalQuantity("");
+      setDisposalUnit("㎥");
+      setDisposalUnitPrice("");
+      setDisposalTaxRate("10");
       setOccurredAt(new Date().toISOString().slice(0, 10));
       setMemo("");
 
@@ -243,6 +262,10 @@ export default function ProjectDetailPage({
     setCategory(entry.category);
     setDetail(normalizeCostDetail(entry.category, entry.detail) ?? "");
     setAmount(entry.amount.toString());
+    setDisposalQuantity(entry.disposalQuantity?.toString() ?? "");
+    setDisposalUnit(entry.disposalUnit ?? "㎥");
+    setDisposalUnitPrice(entry.disposalUnitPrice?.toString() ?? "");
+    setDisposalTaxRate(entry.disposalTaxRate?.toString() ?? "10");
     setLaborCount(entry.laborCount?.toString() ?? "");
     setOccurredAt(entry.occurredAt.slice(0, 10));
     setMemo(entry.memo ?? "");
@@ -255,6 +278,10 @@ export default function ProjectDetailPage({
     setDetail("");
     setAmount("");
     setLaborCount("");
+    setDisposalQuantity("");
+    setDisposalUnit("㎥");
+    setDisposalUnitPrice("");
+    setDisposalTaxRate("10");
     setOccurredAt(new Date().toISOString().slice(0, 10));
     setMemo("");
     setSubmitError("");
@@ -599,7 +626,15 @@ export default function ProjectDetailPage({
           </div>
         )}
 
-        {calculatedLabor ? (
+        {calculatedDisposal ? (
+          <div className="disposal-inputs">
+            <div className="form-field"><label htmlFor="disposal-quantity">数量</label><input id="disposal-quantity" type="number" min="0.1" max="100000" step="0.1" value={disposalQuantity} onChange={(event) => setDisposalQuantity(event.target.value)} required /></div>
+            <div className="form-field"><label htmlFor="disposal-unit">単位</label><select id="disposal-unit" value={disposalUnit} onChange={(event) => setDisposalUnit(event.target.value)}><option>㎥</option><option>kg</option><option value="t">t（トン）</option></select></div>
+            <div className="form-field"><label htmlFor="disposal-price">税抜単価（円）</label><input id="disposal-price" type="number" min="0" max="1000000" step="1" value={disposalUnitPrice} onChange={(event) => setDisposalUnitPrice(event.target.value)} required /></div>
+            <div className="form-field"><label htmlFor="disposal-tax">税率</label><select id="disposal-tax" value={disposalTaxRate} onChange={(event) => setDisposalTaxRate(event.target.value)}><option value="10">10%</option><option value="8">8%</option><option value="0">0%（非課税）</option></select></div>
+            <div className="disposal-preview" aria-live="polite"><span>小計 {disposalSubtotal === null ? "—" : disposalSubtotal.toLocaleString("ja-JP")}円</span><span>消費税 {disposalTaxRate}%：{disposalTax === null ? "—" : disposalTax.toLocaleString("ja-JP")}円</span><strong>税込合計 {disposalTotal === null ? "—" : disposalTotal.toLocaleString("ja-JP")}円</strong>{disposalTotal !== null && disposalTotal > 2147483647 && <p role="alert">税込合計は2,147,483,647円以下にしてください。</p>}</div>
+          </div>
+        ) : calculatedLabor ? (
           <div className="form-field">
             <label htmlFor="labor-count">人数（1日分・0.5人単位）</label>
             <input id="labor-count" type="number" min="0.5" max="1000" step="0.5" value={laborCount} onChange={(event) => setLaborCount(event.target.value)} required />
@@ -610,6 +645,7 @@ export default function ProjectDetailPage({
           <div className="form-field">
             <label htmlFor="cost-amount">{category === "DISPOSAL" && detail === "金属" ? "売却金額" : "金額"}</label>
             {legacyLabor && <p>旧形式・人数／単価未記録</p>}
+            {legacyDisposal && <p>旧形式・数量／単価／税率未記録</p>}
             <input id="cost-amount" type="number" min="1" step="1" value={amount} onChange={(event) => setAmount(event.target.value)} required />
           </div>
         )}
@@ -638,7 +674,7 @@ export default function ProjectDetailPage({
 
         {submitError && <p role="alert">{submitError}</p>}
 
-        <button className="form-submit" type="submit" disabled={isSubmitting || (calculatedLabor && effectiveLaborRate == null)}>
+        <button className="form-submit" type="submit" disabled={isSubmitting || (calculatedLabor && effectiveLaborRate == null) || (calculatedDisposal && (disposalTotal === null || disposalTotal > 2147483647))}>
           {isSubmitting
             ? editingCostId === null
               ? "登録中..."
@@ -668,6 +704,7 @@ export default function ProjectDetailPage({
               {isMetalSale(entry) ? "売却収入" : categoryLabels[entry.category]}
               {entry.detail ? ` / ${normalizeCostDetail(entry.category, entry.detail)}` : ""}
               <LaborCostDescription {...entry} />
+              <DisposalCostDescription {...entry} />
               {entry.memo ? `（${entry.memo}）` : ""}
             </span>
 

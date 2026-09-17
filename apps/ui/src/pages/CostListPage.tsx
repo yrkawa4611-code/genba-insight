@@ -1,10 +1,11 @@
+import DisposalCostDescription, { type DisposalSnapshot } from "../components/DisposalCostDescription";
 import LaborCostDescription from "../components/LaborCostDescription";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl, authFetch } from "../auth";
 import { categoryLabels, isMetalSale, normalizeCostDetail, type CostCategory } from "../costCategories";
 
-type CostEntry = {
+type CostEntry = DisposalSnapshot & {
   id: number;
   category: CostCategory;
   detail: string | null;
@@ -145,6 +146,7 @@ export default function CostListPage() {
                   <span>{sale ? "売却収入" : categoryLabels[entry.category]}</span>
                   {entry.detail && <small>{normalizeCostDetail(entry.category, entry.detail)}</small>}
                   <LaborCostDescription {...entry} />
+              <DisposalCostDescription {...entry} />
                 </span>
                 <strong className={`cost-list-amount${sale ? " text-success" : ""}`} data-label="金額">{sale ? "+" : ""}{yen(entry.amount)}</strong>
                 <span className="cost-list-memo" data-label="メモ">{entry.memo || "—"}</span>
