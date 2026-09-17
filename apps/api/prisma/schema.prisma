@@ -43,6 +43,12 @@ model CostEntry {
   category   CostCategory
   detail     String?
   amount     Int
+  disposalQuantity Decimal? @db.Decimal(7, 1)
+  disposalUnit String?
+  disposalUnitPrice Int?
+  disposalTaxRate Decimal? @db.Decimal(5, 2)
+  disposalSubtotal Int?
+  disposalTaxAmount Int?
   laborCount Decimal? @db.Decimal(5, 1)
   laborUnitPrice Int?
   occurredAt DateTime

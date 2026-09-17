@@ -1,3 +1,4 @@
+import { calculateDisposal, disposalFields, emptyDisposal, isDisposal } from "./disposal.js";
 import { calculateCost, laborCountSchema, laborUnitPriceSchema } from "./labor.js";
 import "dotenv/config";
 import { serve } from "@hono/node-server";
@@ -79,6 +80,10 @@ const createCostEntrySchema = z.object({
   detail: z.string().trim().max(100).optional(),
   amount: z.number().int().positive().optional(),
   laborCount: laborCountSchema.nullish(),
+  disposalQuantity: disposalFields.disposalQuantity.nullish(),
+  disposalUnit: disposalFields.disposalUnit.nullish(),
+  disposalUnitPrice: disposalFields.disposalUnitPrice.nullish(),
+  disposalTaxRate: disposalFields.disposalTaxRate.nullish(),
   occurredAt: z.string().trim().min(1).pipe(z.coerce.date()),
   memo: z.string().trim().max(200).optional(),
 });
@@ -97,6 +102,10 @@ const updateCostEntrySchema = z.object({
   detail: z.string().trim().max(100).nullable(),
   amount: z.number().int().positive().optional(),
   laborCount: laborCountSchema.nullish(),
+  disposalQuantity: disposalFields.disposalQuantity.nullish(),
+  disposalUnit: disposalFields.disposalUnit.nullish(),
+  disposalUnitPrice: disposalFields.disposalUnitPrice.nullish(),
+  disposalTaxRate: disposalFields.disposalTaxRate.nullish(),
   occurredAt: z.string().trim().min(1).pipe(z.coerce.date()),
   memo: z.string().trim().max(200).nullable(),
 });
@@ -237,6 +246,12 @@ app.get("/costs", async (c) => {
       amount: true,
       occurredAt: true,
       memo: true,
+      disposalQuantity: true,
+      disposalUnit: true,
+      disposalUnitPrice: true,
+      disposalTaxRate: true,
+      disposalSubtotal: true,
+      disposalTaxAmount: true,
       laborCount: true,
       laborUnitPrice: true,
       project: {
@@ -253,7 +268,7 @@ app.get("/costs", async (c) => {
     ],
   });
 
-  return c.json(costs.map((entry) => ({ ...entry, laborCount: entry.laborCount?.toNumber() ?? null })));
+  return c.json(costs.map((entry) => ({ ...entry, laborCount: entry.laborCount?.toNumber() ?? null, disposalQuantity: entry.disposalQuantity?.toNumber() ?? null, disposalTaxRate: entry.disposalTaxRate?.toNumber() ?? null })));
 });
 
 const isMetalSale = (entry: { category: string; detail: string | null }) =>
@@ -333,7 +348,7 @@ app.get("/projects/:id", async (c) => {
 
   return c.json({
     ...project,
-    costs: project.costs.map((entry) => ({ ...entry, laborCount: entry.laborCount?.toNumber() ?? null })),
+    costs: project.costs.map((entry) => ({ ...entry, laborCount: entry.laborCount?.toNumber() ?? null, disposalQuantity: entry.disposalQuantity?.toNumber() ?? null, disposalTaxRate: entry.disposalTaxRate?.toNumber() ?? null })),
     targetProfitMargin: project.targetProfitMargin,
     ...totals,
   });
@@ -471,9 +486,12 @@ app.post(
 
     let calculated;
     try {
-      calculated = calculateCost(c.req.valid("json"), project.laborUnitPrice);
+      const input = c.req.valid("json");
+      calculated = isDisposal(input)
+        ? { ...calculateDisposal(input), laborCount: null, laborUnitPrice: null }
+        : { ...calculateCost(input, project.laborUnitPrice), ...emptyDisposal };
     } catch {
-      return c.json({ message: "人数・金額を確認し、人工単価未設定の場合は現場編集で設定してください。" }, 400);
+      return c.json({ message: "数量・単位・単価・税率・人数・金額を確認してください。人工単価未設定の場合は現場編集で設定してください。" }, 400);
     }
 
     const costEntry = await prisma.costEntry.create({
@@ -484,7 +502,7 @@ app.post(
       },
     });
 
-    return c.json({ ...costEntry, laborCount: costEntry.laborCount?.toNumber() ?? null }, 201);
+    return c.json({ ...costEntry, laborCount: costEntry.laborCount?.toNumber() ?? null, disposalQuantity: costEntry.disposalQuantity?.toNumber() ?? null, disposalTaxRate: costEntry.disposalTaxRate?.toNumber() ?? null }, 201);
   },
 );
 
@@ -520,6 +538,13 @@ app.put(
       select: {
         id: true,
         category: true,
+        detail: true,
+        disposalQuantity: true,
+        disposalUnit: true,
+        disposalUnitPrice: true,
+        disposalTaxRate: true,
+        disposalSubtotal: true,
+        disposalTaxAmount: true,
         laborCount: true,
         laborUnitPrice: true,
         project: { select: { laborUnitPrice: true } },
@@ -532,9 +557,13 @@ app.put(
 
     let calculated;
     try {
-      calculated = calculateCost(c.req.valid("json"), existingCostEntry.project.laborUnitPrice, existingCostEntry);
+      const input = c.req.valid("json");
+      const legacyDisposal = isDisposal(existingCostEntry) && existingCostEntry.disposalQuantity === null && existingCostEntry.disposalUnit === null && existingCostEntry.disposalUnitPrice === null && existingCostEntry.disposalTaxRate === null;
+      calculated = isDisposal(input) && !legacyDisposal
+        ? { ...calculateDisposal(input), laborCount: null, laborUnitPrice: null }
+        : { ...calculateCost(input, existingCostEntry.project.laborUnitPrice, existingCostEntry), ...emptyDisposal };
     } catch {
-      return c.json({ message: "人数・金額・人工単価を確認してください。" }, 400);
+      return c.json({ message: "数量・単位・単価・税率・人数・金額を確認してください。" }, 400);
     }
 
     const updatedCostEntry = await prisma.costEntry.update({
@@ -544,7 +573,7 @@ app.put(
       data: { ...c.req.valid("json"), ...calculated },
     });
 
-    return c.json({ ...updatedCostEntry, laborCount: updatedCostEntry.laborCount?.toNumber() ?? null });
+    return c.json({ ...updatedCostEntry, laborCount: updatedCostEntry.laborCount?.toNumber() ?? null, disposalQuantity: updatedCostEntry.disposalQuantity?.toNumber() ?? null, disposalTaxRate: updatedCostEntry.disposalTaxRate?.toNumber() ?? null });
   },
 );
 
