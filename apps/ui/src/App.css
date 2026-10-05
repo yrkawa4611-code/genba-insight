@@ -1,1 +1,49 @@
 #root { min-height: 100vh; }
+.calendar-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:24px 0 12px; }
+.calendar-legend { margin-bottom:12px; color:var(--muted); }
+.calendar-scroll { overflow-x:auto; border:1px solid var(--border); border-radius:12px; background:var(--surface); }
+.calendar-grid { min-width:700px; }
+.calendar-weekdays,.calendar-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
+.calendar-weekdays div { text-align:center; padding:10px; background:#222; font-weight:600; }
+.calendar-week { position:relative; border-top:1px solid var(--border); }
+.calendar-days { position:absolute; inset:0; pointer-events:none; }
+.calendar-days > div { border-right:1px solid #303030; padding:6px 8px; }
+.calendar-outside { background:#141414; color:#94a3b8; }
+.calendar-today time { background:#2563eb; color:white; border-radius:50%; display:inline-flex; width:26px; height:26px; align-items:center; justify-content:center; }
+.calendar-events { position:relative; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); grid-auto-rows:34px; gap:4px 0; margin:38px 0 8px; }
+.calendar-event { margin:0 3px; padding:6px 8px; border-radius:5px; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:none; }
+.calendar-upcoming { background:#303030; color:#e2e8f0; }
+.calendar-active { background:#dbeafe; color:#1e40af; }
+.calendar-completed { background:#dcfce7; color:#166534; }
+.calendar-overdue { background:#fee2e2; color:#991b1b; }
+.calendar-event:focus-visible { outline:3px solid #2563eb; outline-offset:1px; }
+.calendar-month-list { margin-top:24px; }
+.calendar-month-list a { display:flex; flex-direction:column; gap:6px; padding:14px 0; border-bottom:1px solid #303030; text-decoration:none; color:inherit; }
+.calendar-month-list span { font-size:14px; color:var(--muted); }
+.schedule-summary { display:flex; flex-wrap:wrap; gap:8px 18px; margin:14px 0; font-size:14px; }
+@media(max-width:600px) { .calendar-toolbar h2 { font-size:20px; } .calendar-event { font-size:11px; } }
+.calendar-days { pointer-events:auto; }
+.calendar-date-button { display:flex; align-items:center; justify-content:space-between; width:100%; height:28px; padding:0; background:transparent; color:inherit; font-size:13px; border-radius:4px; }
+.calendar-date-button:hover:not(:disabled) { background:#333; }
+.calendar-date-button span { color:var(--muted); }
+.calendar-event { width:auto; text-align:left; line-height:20px; }
+.calendar-event:hover:not(:disabled) { filter:brightness(1.12);  }
+.calendar-dialog { width:min(520px,calc(100% - 24px)); max-height:90vh; overflow-y:auto; padding:24px; background:var(--surface); color:inherit; border:1px solid var(--border); border-radius:14px; }
+.calendar-dialog::backdrop { background:#0009; }
+.calendar-dialog fieldset { display:flex; flex-direction:column; gap:8px; padding:0; border:0; margin:0 0 18px; }
+.calendar-dialog textarea { width:100%; font:inherit; color:inherit; background:#222; border:1px solid var(--border); padding:12px; border-radius:10px; resize:vertical; }
+.calendar-dialog a,.calendar-list-item > a { color:#ff996d; }
+.calendar-help { font-size:12px; color:var(--muted); margin:4px 0 10px; overflow-wrap:anywhere; }
+.calendar-list-item { padding:14px 0; border-bottom:1px solid var(--border); }
+.calendar-list-edit { display:flex; flex-direction:column; gap:6px; text-align:left; padding:0; background:transparent; color:inherit; }
+.calendar-list-edit:hover:not(:disabled) { background:transparent; color:#ff996d; }
+.calendar-month-list .calendar-list-item > a { display:inline-block; padding:8px 0 0; border:0; font-size:14px; }
+
+.calendar-upcoming:hover:not(:disabled) { background:#303030; }
+.calendar-active:hover:not(:disabled) { background:#dbeafe; }
+.calendar-completed:hover:not(:disabled) { background:#dcfce7; }
+.calendar-overdue:hover:not(:disabled) { background:#fee2e2; }
+.calendar-events { grid-auto-rows:52px; }
+.calendar-event strong,.calendar-event small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.calendar-event strong { font-size:12px; }
+.calendar-event small { font-size:10px; font-weight:500; }

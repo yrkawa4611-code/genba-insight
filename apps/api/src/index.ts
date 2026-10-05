@@ -1,3 +1,4 @@
+import { calendarSchema } from "./calendar.js";
 import { calculateDisposal, disposalFields, emptyDisposal, isDisposal } from "./disposal.js";
 import { calculateCost, laborCountSchema, laborUnitPriceSchema } from "./labor.js";
 import "dotenv/config";
@@ -55,7 +56,12 @@ const loginSchema = z.object({
   password: z.string().min(8).max(72),
 });
 
+const scheduleDate = z.iso.date().transform((value) => new Date(value + "T00:00:00.000Z"));
+const optionalScheduleDate = scheduleDate.nullish().transform((value) => value ?? null);
+const todayJapan = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" }).format(new Date());
+
 const createProjectSchema = z.object({
+  hasAdditionalWork: z.boolean().nullish(),
   laborUnitPrice: laborUnitPriceSchema.nullish().transform((value) => value ?? null),
   targetProfitMargin: z.number().int().min(0).max(100).nullish().transform((value) => value ?? null),
   name: z.string().trim().nullish().transform((value) => value || null),
@@ -63,7 +69,14 @@ const createProjectSchema = z.object({
   structure: z.string().trim().min(1),
   areaTsubo: z.number().positive(),
   contractPrice: z.number().int().min(0),
-  startDate: z.string().trim().min(1).pipe(z.coerce.date()),
+  startDate: scheduleDate,
+  plannedEndDate: optionalScheduleDate,
+  completedDate: optionalScheduleDate,
+}).superRefine((input, ctx) => {
+  for (const field of ["plannedEndDate", "completedDate"] as const) {
+    if (input[field] && input[field] < input.startDate) ctx.addIssue({ code: "custom", path: [field], message: "着工日より前の日付は登録できません" });
+  }
+  if (input.completedDate && input.completedDate.toISOString().slice(0, 10) > todayJapan()) ctx.addIssue({ code: "custom", path: ["completedDate"], message: "完工日に未来の日付は登録できません" });
 });
 
 const createCostEntrySchema = z.object({
@@ -220,6 +233,10 @@ app.get("/auth/me", (c) => {
   });
 });
 
+app.use("/calendar", requireAuth);
+app.use("/calendar/*", requireAuth);
+app.use("/calendar", requireAuthenticatedCompany);
+app.use("/calendar/*", requireAuthenticatedCompany);
 app.use("/projects", requireAuth);
 app.use("/projects/*", requireAuth);
 app.use("/projects", requireAuthenticatedCompany);
@@ -286,6 +303,71 @@ const summarizeCosts = (entries: { category: string; detail: string | null; amou
     },
     { cost: 0, saleIncome: 0 },
   );
+
+
+app.get("/calendar", async c => {
+  return c.json(await prisma.calendarEntry.findMany({ where: { companyId: c.get("authenticatedCompany").id }, orderBy: { startDate: "asc" } }));
+});
+
+const calendarConflictMessage = "この現場には既に予定が紐づいています。既存の予定を編集してください。";
+const handleCalendarConflict = (error: unknown) => {
+  if (error && typeof error === "object" && "code" in error && error.code === "P2002") return null;
+  throw error;
+};
+
+app.post("/calendar", zValidator("json", calendarSchema), async c => {
+  const companyId = c.get("authenticatedCompany").id;
+  const input = c.req.valid("json");
+  const project = input.projectId ? await prisma.project.findFirst({ where: { id: input.projectId, companyId } }) : null;
+  if (input.projectId && !project) return c.json({ message: "現場が見つかりません" }, 404);
+  if (project && await prisma.calendarEntry.findFirst({ where: { projectId: project.id } })) return c.json({ message: calendarConflictMessage }, 409);
+  if (project?.completedDate && input.startDate > project.completedDate) return c.json({ message: "着工日を実際の完工日より後にはできません" }, 400);
+  const entry = await prisma.$transaction(async tx => {
+    if (project) await tx.project.update({ where: { id: project.id }, data: { startDate: input.startDate, plannedEndDate: input.plannedEndDate, originalPlannedEndDate: project.originalPlannedEndDate ?? input.plannedEndDate } });
+    return tx.calendarEntry.create({ data: { ...input, companyId } });
+  }).catch(handleCalendarConflict);
+  if (!entry) return c.json({ message: calendarConflictMessage }, 409);
+  return c.json(entry, 201);
+});
+
+app.put("/calendar/:id", zValidator("json", calendarSchema), async c => {
+  const companyId = c.get("authenticatedCompany").id;
+  const id = Number(c.req.param("id"));
+  if (!Number.isSafeInteger(id) || id <= 0) return c.json({ message: "予定IDが正しくありません" }, 400);
+  const entry = await prisma.calendarEntry.findFirst({ where: { id, companyId } });
+  if (!entry) return c.json({ message: "予定が見つかりません" }, 404);
+  const input = c.req.valid("json");
+  const project = input.projectId ? await prisma.project.findFirst({ where: { id: input.projectId, companyId } }) : null;
+  if (input.projectId && !project) return c.json({ message: "現場が見つかりません" }, 404);
+  if (project && await prisma.calendarEntry.findFirst({ where: { projectId: project.id, id: { not: id } } })) return c.json({ message: calendarConflictMessage }, 409);
+  if (project?.completedDate && input.startDate > project.completedDate) return c.json({ message: "着工日を実際の完工日より後にはできません" }, 400);
+  const updated = await prisma.$transaction(async tx => {
+    if (project) await tx.project.update({ where: { id: project.id }, data: { startDate: input.startDate, plannedEndDate: input.plannedEndDate, originalPlannedEndDate: project.originalPlannedEndDate ?? input.plannedEndDate } });
+    return tx.calendarEntry.update({ where: { id }, data: input });
+  }).catch(handleCalendarConflict);
+  if (!updated) return c.json({ message: calendarConflictMessage }, 409);
+  return c.json(updated);
+});
+
+app.post("/calendar/:id/register", zValidator("json", createProjectSchema), async c => {
+  const companyId = c.get("authenticatedCompany").id;
+  const id = Number(c.req.param("id"));
+  if (!Number.isSafeInteger(id) || id <= 0) return c.json({ message: "予定IDが正しくありません" }, 400);
+  const entry = await prisma.calendarEntry.findFirst({ where: { id, companyId } });
+  if (!entry) return c.json({ message: "予定が見つかりません" }, 404);
+  if (entry.projectId) return c.json({ message: "この予定は現場登録済みです" }, 409);
+  const input = c.req.valid("json");
+  const project = await prisma.$transaction(async tx => {
+    // Claim the entry before creating a project, preventing duplicate registrations.
+    const claim = await tx.calendarEntry.updateMany({ where: { id, companyId, projectId: null }, data: { updatedAt: new Date() } });
+    if (!claim.count) return null;
+    const created = await tx.project.create({ data: { ...input, companyId, originalPlannedEndDate: input.plannedEndDate } });
+    await tx.calendarEntry.update({ where: { id }, data: { projectId: created.id, startDate: input.startDate, plannedEndDate: input.plannedEndDate } });
+    return created;
+  });
+  if (!project) return c.json({ message: "この予定は現場登録済みです" }, 409);
+  return c.json({ ...project, cost: 0, saleIncome: 0 }, 201);
+});
 
 app.get("/projects", async (c) => {
   const company = c.get("authenticatedCompany");
@@ -361,6 +443,7 @@ app.post("/projects", zValidator("json", createProjectSchema), async (c) => {
     data: {
       ...c.req.valid("json"),
       companyId: company.id,
+      originalPlannedEndDate: c.req.valid("json").plannedEndDate,
     },
   });
 
@@ -391,6 +474,7 @@ app.put("/projects/:id", zValidator("json", createProjectSchema), async (c) => {
     },
     select: {
       id: true,
+      originalPlannedEndDate: true,
     },
   });
 
@@ -402,7 +486,7 @@ app.put("/projects/:id", zValidator("json", createProjectSchema), async (c) => {
     where: {
       id: projectId,
     },
-    data: c.req.valid("json"),
+    data: { ...c.req.valid("json"), originalPlannedEndDate: existingProject.originalPlannedEndDate ?? c.req.valid("json").plannedEndDate },
     include: {
       costs: {
         select: {

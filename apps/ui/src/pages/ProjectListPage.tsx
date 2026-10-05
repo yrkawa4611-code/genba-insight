@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { clearToken } from "../auth";
 import TargetProfitMargin from "../components/TargetProfitMargin";
 
-type Project = { id: number; laborUnitPrice: number | null; targetProfitMargin: number | null; name: string | null; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
+type Project = { id: number; laborUnitPrice: number | null; hasAdditionalWork: boolean | null; targetProfitMargin: number | null; name: string | null; address: string; structure: string; areaTsubo: number; contractPrice: number; startDate: string; cost: number; saleIncome: number };
 type Props = { projects: Project[]; isLoading: boolean; error: string; onLogout: () => void };
 
 const yen = (value: number) => `\u00a5${value.toLocaleString("ja-JP")}`;
@@ -38,6 +38,7 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
           <p className="page-description">現場ごとの契約・原価・粗利を確認できます</p>
         </div>
         <div className="header-actions">
+          <button className="button button-secondary" type="button" onClick={() => navigate("/projects/calendar")}>カレンダー</button>
           <button className="button button-secondary" type="button" onClick={logout}>ログアウト</button>
           <button className="button button-secondary" type="button" onClick={() => navigate("/costs")}>原価一覧</button>
           <button className="button button-primary" type="button" onClick={() => navigate("/projects/create")}>＋ 現場登録</button>
@@ -90,6 +91,7 @@ export default function ProjectListPage({ projects, isLoading, error, onLogout }
                   <span className="status-dot" />{loss ? "赤字" : profit > 0 ? "黒字" : "未算出"}
                 </span>
               </div>
+              <span className="additional-work-badge">付帯工事：{project.hasAdditionalWork == null ? "未設定" : project.hasAdditionalWork ? "あり" : "なし"}</span>
               <p className="project-date">開始日 {date(project.startDate)}</p>
               <div className="project-financials">
                 <div className="financial-item"><span>請負金額</span><strong>{yen(project.contractPrice)}</strong></div>
