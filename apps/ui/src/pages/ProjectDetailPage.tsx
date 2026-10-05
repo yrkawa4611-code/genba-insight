@@ -2,6 +2,7 @@ import DisposalCostDescription, { type DisposalSnapshot } from "../components/Di
 import LaborCostDescription from "../components/LaborCostDescription";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { dateKey, scheduleStatus } from "../schedule";
 import TargetProfitMargin from "../components/TargetProfitMargin";
 import { apiUrl, authFetch } from "../auth";
 import { categoryLabels, isMetalSale, normalizeCostDetail, type CostCategory } from "../costCategories";
@@ -20,8 +21,12 @@ type CostEntry = DisposalSnapshot & {
 
 type Project = {
   id: number;
+  startDate: string;
+  plannedEndDate: string | null;
+  originalPlannedEndDate?: string | null;
+  completedDate: string | null;
   laborUnitPrice: number | null;
-  targetProfitMargin: number | null;
+  hasAdditionalWork: boolean | null; targetProfitMargin: number | null;
   name: string | null;
   address: string;
   structure: string;
@@ -430,6 +435,7 @@ export default function ProjectDetailPage({
           <span aria-hidden="true">←</span> 現場一覧
         </button>
         <div className="detail-actions">
+          <button className="button button-secondary" type="button" onClick={() => navigate("/projects/calendar")}>カレンダー</button>
           <button className="button button-secondary" type="button" onClick={() => navigate(`/projects/${project.id}/edit`)}>編集</button>
           <button className="button button-danger" type="button" onClick={() => void handleDelete()} disabled={isDeleting}>
             {isDeleting ? "削除中..." : "削除"}
@@ -445,6 +451,14 @@ export default function ProjectDetailPage({
             <p className="eyebrow">PROJECT DETAIL</p>
             <h1>{project.name || project.address}</h1>
             {project.name && <p className="project-address">{project.address}</p>}
+            <span className="additional-work-badge">付帯工事：{project.hasAdditionalWork == null ? "未設定" : project.hasAdditionalWork ? "あり" : "なし"}</span>
+            <div className="schedule-summary">
+              <strong>{scheduleStatus(project).label}</strong>
+              <span>着工日：{dateKey(project.startDate)}</span>
+              <span>完工予定日：{dateKey(project.plannedEndDate) || "未設定"}</span>
+              <span>実際の完工日：{dateKey(project.completedDate) || "未完工"}</span>
+              {project.originalPlannedEndDate && dateKey(project.originalPlannedEndDate) !== dateKey(project.plannedEndDate) && <span>当初の完工予定日：{dateKey(project.originalPlannedEndDate)}</span>}
+            </div>
             <p className="detail-subtitle">{project.structure} ・ {project.areaTsubo.toLocaleString("ja-JP")}坪</p>
           </div>
           <span className={`status-badge ${isLoss ? "status-loss" : profit > 0 ? "status-profit" : "status-neutral"}`}>

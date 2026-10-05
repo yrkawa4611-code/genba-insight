@@ -1,15 +1,21 @@
+import ScheduleFields from "../components/ScheduleFields";
+import { japanToday } from "../schedule";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 type Project = {
   laborUnitPrice: number | null;
-  targetProfitMargin: number | null;
+  hasAdditionalWork: boolean | null; targetProfitMargin: number | null;
   name: string | null;
   address: string;
   structure: string;
   areaTsubo: number;
   contractPrice: number;
+  calendarEntryId?: number;
   startDate: string;
+  plannedEndDate: string | null;
+  completedDate: string | null;
+  originalPlannedEndDate?: string | null;
 };
 
 type Props = {
@@ -17,14 +23,19 @@ type Props = {
 };
 
 export default function ProjectCreatePage({ addProject }: Props) {
+  const [params] = useSearchParams();
+  const calendarEntryId = Number(params.get("calendarEntryId")) || undefined;
+  const [additionalWork, setAdditionalWork] = useState("");
   const [laborUnitPrice, setLaborUnitPrice] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(params.get("name") || "");
   const [targetProfitMargin, setTargetProfitMargin] = useState("");
   const [address, setAddress] = useState("");
   const [structure, setStructure] = useState("");
   const [areaTsubo, setAreaTsubo] = useState("");
   const [contractPrice, setContractPrice] = useState("");
-  const [startDate, setStartDate] = useState("");
+  const [startDate, setStartDate] = useState(params.get("startDate") || "");
+  const [plannedEndDate, setPlannedEndDate] = useState(params.get("plannedEndDate") || "");
+  const [completedDate, setCompletedDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -34,10 +45,16 @@ export default function ProjectCreatePage({ addProject }: Props) {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    if ((plannedEndDate && plannedEndDate < startDate) || (completedDate && completedDate < startDate) || (completedDate && completedDate > japanToday())) {
+      setError("完工予定日・完工日は着工日以降、完工日は今日以前で入力してください。");
+      return;
+    }
     setIsSubmitting(true);
 
     try {
       await addProject({
+        calendarEntryId,
+        hasAdditionalWork: additionalWork === "" ? null : additionalWork === "true",
         name: name.trim() || null,
         laborUnitPrice: laborUnitPrice === "" ? null : Number(laborUnitPrice),
         targetProfitMargin: targetProfitMargin === "" ? null : Number(targetProfitMargin),
@@ -46,8 +63,10 @@ export default function ProjectCreatePage({ addProject }: Props) {
         areaTsubo: Number(areaTsubo),
         contractPrice: Number(contractPrice),
         startDate,
+        plannedEndDate: plannedEndDate || null,
+        completedDate: completedDate || null,
       });
-      navigate("/projects");
+      navigate(calendarEntryId ? "/projects/calendar" : "/projects");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "通信エラーが発生しました。");
     } finally {
@@ -66,6 +85,14 @@ export default function ProjectCreatePage({ addProject }: Props) {
         <div>
           <label htmlFor="target-margin">目標粗利率（任意・％）</label>
           <input id="target-margin" type="number" min="0" max="100" step="1" placeholder="30" value={targetProfitMargin} onChange={(event) => setTargetProfitMargin(event.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="additional-work">付帯工事</label>
+          <select id="additional-work" value={additionalWork} onChange={(event) => setAdditionalWork(event.target.value)}>
+            <option value="">未設定</option>
+            <option value="true">あり</option>
+            <option value="false">なし</option>
+          </select>
         </div>
         <div>
           <label htmlFor="project-name">工事名（任意）</label><br />
@@ -92,9 +119,10 @@ export default function ProjectCreatePage({ addProject }: Props) {
           <p>{unitPrice.toLocaleString()}円 / 坪</p>
         </div>
         <div>
-          <label>開始日</label><br />
+          <label>着工日</label><br />
           <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} required />
         </div>
+        <ScheduleFields startDate={startDate} plannedEndDate={plannedEndDate} completedDate={completedDate} onPlannedChange={setPlannedEndDate} onCompletedChange={setCompletedDate} />
         {error && <p role="alert">{error}</p>}
         <button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "登録中..." : "登録"}

@@ -22,17 +22,22 @@ model Project {
   id            Int         @id @default(autoincrement())
   companyId     Int
   name          String?
+  hasAdditionalWork Boolean?
   targetProfitMargin Int?
   laborUnitPrice Int?
   address       String
   structure     String
   areaTsubo     Float
   contractPrice Int
+  plannedEndDate DateTime? @db.Date
+  originalPlannedEndDate DateTime? @db.Date
+  completedDate DateTime? @db.Date
   startDate     DateTime
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   company       Company     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   costs         CostEntry[]
+  calendarEntry CalendarEntry?
 
   @@index([companyId])
 }
@@ -69,4 +74,21 @@ model Company {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   projects     Project[]
+  calendarEntries CalendarEntry[]
+}
+
+model CalendarEntry {
+  id Int @id @default(autoincrement())
+  companyId Int
+  projectId Int? @unique
+  title String
+  recorderName String
+  startDate DateTime @db.Date
+  plannedEndDate DateTime? @db.Date
+  memo String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  @@index([companyId])
 }

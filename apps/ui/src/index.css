@@ -200,3 +200,13 @@ h1 { margin-bottom: 0; font-size: clamp(28px, 4vw, 38px); line-height: 1.25; let
 .cost-list-category .disposal-cost-description { white-space: normal; overflow: visible; }
 .history-description:has(.disposal-cost-description) { white-space: normal; overflow-wrap: anywhere; }
 @media (max-width: 420px) { .disposal-inputs { grid-template-columns: minmax(0, 1fr); } }
+
+.additional-work-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+}

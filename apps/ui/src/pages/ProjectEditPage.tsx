@@ -1,3 +1,5 @@
+import ScheduleFields from "../components/ScheduleFields";
+import { japanToday, dateKey } from "../schedule";
 import { useState } from "react";
 import {
   useNavigate,
@@ -7,13 +9,16 @@ import {
 type Project = {
   id: number;
   laborUnitPrice: number | null;
-  targetProfitMargin: number | null;
+  hasAdditionalWork: boolean | null; targetProfitMargin: number | null;
   name: string | null;
   address: string;
   structure: string;
   areaTsubo: number;
   contractPrice: number;
   startDate: string;
+  plannedEndDate: string | null;
+  completedDate: string | null;
+  originalPlannedEndDate?: string | null;
   cost: number;
 };
 
@@ -74,6 +79,7 @@ function ProjectEditForm({
   updateProject,
 }: FormProps) {
   const navigate = useNavigate();
+  const [additionalWork, setAdditionalWork] = useState(project.hasAdditionalWork == null ? "" : String(project.hasAdditionalWork));
   const [laborUnitPrice, setLaborUnitPrice] = useState(project.laborUnitPrice?.toString() ?? "");
   const [name, setName] = useState(project.name ?? "");
   const [targetProfitMargin, setTargetProfitMargin] = useState(project.targetProfitMargin?.toString() ?? "");
@@ -95,6 +101,8 @@ function ProjectEditForm({
     toDateInputValue(project.startDate),
   );
 
+  const [plannedEndDate, setPlannedEndDate] = useState(dateKey(project.plannedEndDate));
+  const [completedDate, setCompletedDate] = useState(dateKey(project.completedDate));
   const [isSubmitting, setIsSubmitting] =
     useState(false);
 
@@ -110,10 +118,15 @@ function ProjectEditForm({
   ) => {
     event.preventDefault();
     setError("");
+    if ((plannedEndDate && plannedEndDate < startDate) || (completedDate && completedDate < startDate) || (completedDate && completedDate > japanToday())) {
+      setError("完工予定日・完工日は着工日以降、完工日は今日以前で入力してください。");
+      return;
+    }
     setIsSubmitting(true);
 
     try {
       await updateProject(project.id, {
+        hasAdditionalWork: additionalWork === "" ? null : additionalWork === "true",
         name: name.trim() || null,
         laborUnitPrice: laborUnitPrice === "" ? null : Number(laborUnitPrice),
         targetProfitMargin: targetProfitMargin === "" ? null : Number(targetProfitMargin),
@@ -122,6 +135,8 @@ function ProjectEditForm({
         areaTsubo: Number(areaTsubo),
         contractPrice: Number(contractPrice),
         startDate,
+        plannedEndDate: plannedEndDate || null,
+        completedDate: completedDate || null,
       });
 
       navigate(`/projects/${project.id}`);
@@ -151,6 +166,14 @@ function ProjectEditForm({
         <div>
           <label htmlFor="target-margin">目標粗利率（任意・％）</label>
           <input id="target-margin" type="number" min="0" max="100" step="1" placeholder="30" value={targetProfitMargin} onChange={(event) => setTargetProfitMargin(event.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="additional-work">付帯工事</label>
+          <select id="additional-work" value={additionalWork} onChange={(event) => setAdditionalWork(event.target.value)}>
+            <option value="">未設定</option>
+            <option value="true">あり</option>
+            <option value="false">なし</option>
+          </select>
         </div>
         <div>
           <label htmlFor="project-name">工事名（任意）</label>
@@ -219,7 +242,7 @@ function ProjectEditForm({
         </div>
 
         <div>
-          <label>開始日</label>
+          <label>着工日</label>
 
           <input
             type="date"
@@ -231,6 +254,7 @@ function ProjectEditForm({
           />
         </div>
 
+        <ScheduleFields startDate={startDate} plannedEndDate={plannedEndDate} completedDate={completedDate} onPlannedChange={setPlannedEndDate} onCompletedChange={setCompletedDate} />
         {error && <p role="alert">{error}</p>}
 
         <button

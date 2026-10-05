@@ -8,23 +8,27 @@ import "./App.css";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ProjectCreatePage from "./pages/ProjectCreatePage";
 import ProjectEditPage from "./pages/ProjectEditPage";
+import CalendarPage from "./pages/CalendarPage";
 import CostListPage from "./pages/CostListPage";
 
 type Project = {
   id: number;
   laborUnitPrice: number | null;
-  targetProfitMargin: number | null;
+  hasAdditionalWork: boolean | null; targetProfitMargin: number | null;
   name: string | null;
   address: string;
   structure: string;
   areaTsubo: number;
   contractPrice: number;
   startDate: string;
+  plannedEndDate: string | null;
+  completedDate: string | null;
+  originalPlannedEndDate?: string | null;
   cost: number;
   saleIncome: number;
 };
 
-type CreateProjectInput = Omit<Project, "id" | "cost" | "saleIncome">;
+type CreateProjectInput = Omit<Project, "id" | "cost" | "saleIncome"> & { calendarEntryId?: number };
 type UpdateProjectInput = Omit<Project, "id" | "cost" | "saleIncome">;
 
 function AppRoutes() {
@@ -67,12 +71,13 @@ function AppRoutes() {
   }, [isAuthenticated, location.pathname]);
 
   const addProject = async (project: CreateProjectInput) => {
-    const response = await authFetch(`${apiUrl}/projects`, {
+    const { calendarEntryId, ...input } = project;
+    const response = await authFetch(calendarEntryId ? `${apiUrl}/calendar/${calendarEntryId}/register` : `${apiUrl}/projects`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(project),
+      body: JSON.stringify(input),
     });
 
     if (!response.ok) {
@@ -173,6 +178,7 @@ function AppRoutes() {
           }
         />
 
+        <Route path="/projects/calendar" element={<RequireAuth><CalendarPage /></RequireAuth>} />
         <Route
           path="/costs"
           element={
